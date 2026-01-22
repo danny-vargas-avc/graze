@@ -1,2 +1,0 @@
-web: gunicorn graze_api.wsgi --log-file -
-release: python manage.py migrate --noinput && python manage.py collectstatic --noinput

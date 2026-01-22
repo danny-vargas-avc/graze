@@ -5,8 +5,8 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
-BACKEND_DIR="$PROJECT_ROOT/backend"
-DATA_DIR="$PROJECT_ROOT/data"
+BACKEND_DIR="$PROJECT_ROOT/src/django"
+DATA_DIR="$SCRIPT_DIR/data"
 
 cd "$BACKEND_DIR"
 
@@ -34,6 +34,7 @@ fi
 
 # Run migrations
 echo "Running migrations..."
+python manage.py makemigrations --noinput
 python manage.py migrate
 
 # Import data if flag passed and data exists

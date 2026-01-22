@@ -1,6 +1,3 @@
-"""
-WSGI config for Graze API.
-"""
 import os
 from django.core.wsgi import get_wsgi_application
 

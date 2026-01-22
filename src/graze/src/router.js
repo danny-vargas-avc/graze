@@ -1,9 +1,15 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import LandingView from './views/LandingView.vue'
 import SearchView from './views/SearchView.vue'
 
 const routes = [
   {
     path: '/',
+    name: 'landing',
+    component: LandingView,
+  },
+  {
+    path: '/search',
     name: 'search',
     component: SearchView,
   },

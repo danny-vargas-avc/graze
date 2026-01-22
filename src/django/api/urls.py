@@ -1,15 +1,5 @@
-"""
-URL routing for Graze API.
-"""
 from django.urls import path
-from .views import (
-    DishListView,
-    DishDetailView,
-    RestaurantListView,
-    RestaurantDetailView,
-    StatsView,
-    DataFlagCreateView,
-)
+from .views import DishListView, DishDetailView, RestaurantListView, RestaurantDetailView, StatsView, DataFlagCreateView
 
 urlpatterns = [
     path('dishes', DishListView.as_view(), name='dish-list'),
