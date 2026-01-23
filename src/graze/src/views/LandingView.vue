@@ -1,391 +1,524 @@
 <script setup>
 /**
- * Landing Page with "Chaos to Order" narrative
- * 7 sections: Hero → Transformation → MacroSpace → Speed → Trust → Zillow → CTA
+ * Graze Landing Page - Reaction-Diffusion Art
+ * Gray-Scott model using standard UNSIGNED_BYTE textures for compatibility
  */
-import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useLandingScroll } from '../composables/useLandingScroll'
-import { useDeviceCapability } from '../composables/useDeviceCapability'
-import { useTransformation } from '../composables/useTransformation'
-import LandingScene from '../components/landing/LandingScene.vue'
-import MobileScene from '../components/landing/MobileScene.vue'
-import TypewriterFilter from '../components/landing/TypewriterFilter.vue'
-import SpeedComparison from '../components/landing/SpeedComparison.vue'
-import TrustLogos from '../components/landing/TrustLogos.vue'
-import ZillowFilter from '../components/landing/ZillowFilter.vue'
-import FinalCTA from '../components/landing/FinalCTA.vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 
-// Scroll state machine
-const {
-  scrollProgress,
-  activeSection,
-  heroProgress,
-  transformationProgress,
-  macroSpaceProgress,
-  speedProgress,
-  trustProgress,
-  zillowProgress,
-  ctaProgress,
-} = useLandingScroll()
+const canvasRef = ref(null)
+let gl = null
+let animationFrame = null
 
-// Device detection
-const { shouldUseFallback, isMobile } = useDeviceCapability()
+// Pattern presets (f, k values that create interesting patterns)
+const PRESETS = [
+  { name: 'mitosis', f: 0.0367, k: 0.0649 },
+  { name: 'coral', f: 0.0545, k: 0.062 },
+  { name: 'maze', f: 0.029, k: 0.057 },
+  { name: 'spots', f: 0.035, k: 0.065 },
+  { name: 'waves', f: 0.014, k: 0.054 },
+  { name: 'worms', f: 0.078, k: 0.061 },
+]
 
-// Transformation state
-const { typewriterText, updateTransformation, FULL_FILTER_TEXT } = useTransformation()
+// Color palettes (warm, organic tones)
+const PALETTES = [
+  { bg: [0.04, 0.04, 0.04], fg: [0.76, 0.55, 0.38] },  // charcoal + terracotta
+  { bg: [0.04, 0.04, 0.04], fg: [0.55, 0.65, 0.45] },  // charcoal + olive
+  { bg: [0.04, 0.04, 0.04], fg: [0.85, 0.70, 0.50] },  // charcoal + amber
+  { bg: [0.04, 0.04, 0.04], fg: [0.45, 0.55, 0.50] },  // charcoal + sage
+]
 
-// Update transformation text based on progress
-const showTypewriter = computed(() => {
-  return activeSection.value === 1 && transformationProgress.value > 0 && transformationProgress.value < 0.6
+// Simulation state
+let currentPreset = null
+let currentPalette = null
+let mouseX = 0.5
+let mouseY = 0.5
+let mouseActive = false
+let simWidth = 0
+let simHeight = 0
+
+// WebGL resources
+let simulationProgram = null
+let displayProgram = null
+let textures = []
+let framebuffers = []
+let currentTexture = 0
+let quadBuffer = null
+
+// Shader sources
+const vertexShaderSource = `
+  attribute vec2 a_position;
+  varying vec2 v_uv;
+  void main() {
+    v_uv = a_position * 0.5 + 0.5;
+    gl_Position = vec4(a_position, 0.0, 1.0);
+  }
+`
+
+const simulationShaderSource = `
+  precision highp float;
+
+  uniform sampler2D u_texture;
+  uniform vec2 u_resolution;
+  uniform float u_feed;
+  uniform float u_kill;
+  uniform vec2 u_mouse;
+  uniform float u_mouseActive;
+  uniform float u_dt;
+
+  varying vec2 v_uv;
+
+  void main() {
+    vec2 texel = 1.0 / u_resolution;
+
+    // Current state (stored in RG channels)
+    vec4 state = texture2D(u_texture, v_uv);
+    float a = state.r;
+    float b = state.g;
+
+    // Laplacian with 9-point stencil
+    float la = -a;
+    float lb = -b;
+
+    // Cardinal directions (weight 0.2)
+    la += texture2D(u_texture, v_uv + vec2(-texel.x, 0.0)).r * 0.2;
+    la += texture2D(u_texture, v_uv + vec2(texel.x, 0.0)).r * 0.2;
+    la += texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).r * 0.2;
+    la += texture2D(u_texture, v_uv + vec2(0.0, texel.y)).r * 0.2;
+
+    lb += texture2D(u_texture, v_uv + vec2(-texel.x, 0.0)).g * 0.2;
+    lb += texture2D(u_texture, v_uv + vec2(texel.x, 0.0)).g * 0.2;
+    lb += texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).g * 0.2;
+    lb += texture2D(u_texture, v_uv + vec2(0.0, texel.y)).g * 0.2;
+
+    // Diagonal directions (weight 0.05)
+    la += texture2D(u_texture, v_uv + vec2(-texel.x, -texel.y)).r * 0.05;
+    la += texture2D(u_texture, v_uv + vec2(texel.x, -texel.y)).r * 0.05;
+    la += texture2D(u_texture, v_uv + vec2(-texel.x, texel.y)).r * 0.05;
+    la += texture2D(u_texture, v_uv + vec2(texel.x, texel.y)).r * 0.05;
+
+    lb += texture2D(u_texture, v_uv + vec2(-texel.x, -texel.y)).g * 0.05;
+    lb += texture2D(u_texture, v_uv + vec2(texel.x, -texel.y)).g * 0.05;
+    lb += texture2D(u_texture, v_uv + vec2(-texel.x, texel.y)).g * 0.05;
+    lb += texture2D(u_texture, v_uv + vec2(texel.x, texel.y)).g * 0.05;
+
+    // Diffusion rates
+    float Da = 1.0;
+    float Db = 0.5;
+
+    // Feed and kill rates
+    float f = u_feed;
+    float k = u_kill;
+
+    // Mouse interaction - adds B chemical
+    float mouseDist = distance(v_uv, u_mouse);
+    float mouseInfluence = smoothstep(0.08, 0.0, mouseDist) * u_mouseActive;
+
+    // Gray-Scott equations
+    float abb = a * b * b;
+    float da = Da * la - abb + f * (1.0 - a);
+    float db = Db * lb + abb - (k + f) * b;
+
+    // Update with timestep
+    a = clamp(a + da * u_dt, 0.0, 1.0);
+    b = clamp(b + db * u_dt + mouseInfluence * 0.1, 0.0, 1.0);
+
+    gl_FragColor = vec4(a, b, 0.0, 1.0);
+  }
+`
+
+const displayShaderSource = `
+  precision highp float;
+
+  uniform sampler2D u_texture;
+  uniform vec3 u_bgColor;
+  uniform vec3 u_fgColor;
+
+  varying vec2 v_uv;
+
+  void main() {
+    vec4 state = texture2D(u_texture, v_uv);
+    // B chemical (green channel) drives the pattern visibility
+    float b = state.g;
+    // Mix background and foreground based on B concentration
+    vec3 color = mix(u_bgColor, u_fgColor, b);
+    gl_FragColor = vec4(color, 1.0);
+  }
+`
+
+function createShader(type, source) {
+  const shader = gl.createShader(type)
+  gl.shaderSource(shader, source)
+  gl.compileShader(shader)
+
+  if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
+    console.error('Shader compile error:', gl.getShaderInfoLog(shader))
+    gl.deleteShader(shader)
+    return null
+  }
+  return shader
+}
+
+function createProgram(vertexSource, fragmentSource) {
+  const vertexShader = createShader(gl.VERTEX_SHADER, vertexSource)
+  const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentSource)
+
+  if (!vertexShader || !fragmentShader) return null
+
+  const program = gl.createProgram()
+  gl.attachShader(program, vertexShader)
+  gl.attachShader(program, fragmentShader)
+  gl.linkProgram(program)
+
+  if (!gl.getProgramParameter(program, gl.LINK_STATUS)) {
+    console.error('Program link error:', gl.getProgramInfoLog(program))
+    return null
+  }
+  return program
+}
+
+function initWebGL() {
+  const canvas = canvasRef.value
+  gl = canvas.getContext('webgl', {
+    alpha: false,
+    antialias: false,
+    preserveDrawingBuffer: false
+  })
+
+  if (!gl) {
+    console.error('WebGL not supported')
+    return false
+  }
+
+  // Create programs
+  simulationProgram = createProgram(vertexShaderSource, simulationShaderSource)
+  displayProgram = createProgram(vertexShaderSource, displayShaderSource)
+
+  if (!simulationProgram || !displayProgram) {
+    console.error('Failed to create shader programs')
+    return false
+  }
+
+  // Create quad geometry
+  quadBuffer = gl.createBuffer()
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
+    -1, -1, 1, -1, -1, 1,
+    -1, 1, 1, -1, 1, 1
+  ]), gl.STATIC_DRAW)
+
+  // Initialize textures and framebuffers
+  resizeCanvas()
+
+  return true
+}
+
+function resizeCanvas() {
+  const canvas = canvasRef.value
+  const dpr = Math.min(window.devicePixelRatio || 1, 2)
+  const width = Math.floor(window.innerWidth * dpr)
+  const height = Math.floor(window.innerHeight * dpr)
+
+  canvas.width = width
+  canvas.height = height
+  canvas.style.width = window.innerWidth + 'px'
+  canvas.style.height = window.innerHeight + 'px'
+
+  // Use lower resolution for simulation (performance)
+  simWidth = Math.floor(width * 0.5)
+  simHeight = Math.floor(height * 0.5)
+
+  // Recreate textures at new size
+  createTextures()
+}
+
+function createTextures() {
+  // Clean up old resources
+  textures.forEach(t => gl.deleteTexture(t))
+  framebuffers.forEach(fb => gl.deleteFramebuffer(fb))
+  textures = []
+  framebuffers = []
+
+  // Create ping-pong textures using UNSIGNED_BYTE
+  for (let i = 0; i < 2; i++) {
+    const texture = gl.createTexture()
+    gl.bindTexture(gl.TEXTURE_2D, texture)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE)
+    textures.push(texture)
+
+    const framebuffer = gl.createFramebuffer()
+    gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffer)
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, texture, 0)
+    framebuffers.push(framebuffer)
+  }
+
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+
+  // Initialize state
+  initializeState()
+}
+
+function initializeState() {
+  const data = new Uint8Array(simWidth * simHeight * 4)
+
+  // Fill with A=1 (255), B=0
+  for (let i = 0; i < simWidth * simHeight; i++) {
+    data[i * 4 + 0] = 255  // A = 1.0
+    data[i * 4 + 1] = 0    // B = 0.0
+    data[i * 4 + 2] = 0
+    data[i * 4 + 3] = 255
+  }
+
+  // Seed random spots of B chemical - make them bigger and more numerous
+  const numSeeds = 30 + Math.floor(Math.random() * 20)
+  for (let s = 0; s < numSeeds; s++) {
+    const cx = Math.floor(Math.random() * simWidth)
+    const cy = Math.floor(Math.random() * simHeight)
+    const radius = 10 + Math.floor(Math.random() * 25)
+
+    for (let dy = -radius; dy <= radius; dy++) {
+      for (let dx = -radius; dx <= radius; dx++) {
+        const dist = Math.sqrt(dx * dx + dy * dy)
+        if (dist < radius) {
+          const x = (cx + dx + simWidth) % simWidth
+          const y = (cy + dy + simHeight) % simHeight
+          const idx = (y * simWidth + x) * 4
+          
+          // Gradual falloff from center
+          const falloff = 1.0 - (dist / radius)
+          data[idx + 0] = Math.floor(128 + 64 * falloff)  // A reduced in center
+          data[idx + 1] = Math.floor(128 + 127 * falloff)  // B high in center
+        }
+      }
+    }
+  }
+
+  // Set pixel store alignment for texture upload
+  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
+
+  // Upload to both textures
+  for (let i = 0; i < 2; i++) {
+    gl.bindTexture(gl.TEXTURE_2D, textures[i])
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+  }
+}
+
+function simulate() {
+  gl.useProgram(simulationProgram)
+
+  // Bind source texture
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, textures[currentTexture])
+  gl.uniform1i(gl.getUniformLocation(simulationProgram, 'u_texture'), 0)
+
+  // Set uniforms
+  gl.uniform2f(gl.getUniformLocation(simulationProgram, 'u_resolution'), simWidth, simHeight)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_feed'), currentPreset.f)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_kill'), currentPreset.k)
+  gl.uniform2f(gl.getUniformLocation(simulationProgram, 'u_mouse'), mouseX, mouseY)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_mouseActive'), mouseActive ? 1.0 : 0.0)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_dt'), 1.0)
+
+  // Render to other texture
+  const nextTexture = 1 - currentTexture
+  gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[nextTexture])
+  gl.viewport(0, 0, simWidth, simHeight)
+
+  // Draw
+  const posLoc = gl.getAttribLocation(simulationProgram, 'a_position')
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
+  gl.enableVertexAttribArray(posLoc)
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0)
+  gl.drawArrays(gl.TRIANGLES, 0, 6)
+
+  currentTexture = nextTexture
+}
+
+function display() {
+  gl.useProgram(displayProgram)
+
+  // Get locations
+  const texLoc = gl.getUniformLocation(displayProgram, 'u_texture')
+  const posLoc = gl.getAttribLocation(displayProgram, 'a_position')
+
+  // Bind result texture (use current after simulation)
+  gl.activeTexture(gl.TEXTURE0)
+  gl.bindTexture(gl.TEXTURE_2D, textures[currentTexture])
+  gl.uniform1i(texLoc, 0)
+
+  // Set colors
+  gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_bgColor'),
+    currentPalette.bg[0], currentPalette.bg[1], currentPalette.bg[2])
+  gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_fgColor'),
+    currentPalette.fg[0], currentPalette.fg[1], currentPalette.fg[2])
+
+  // Render to screen
+  gl.bindFramebuffer(gl.FRAMEBUFFER, null)
+  gl.viewport(0, 0, canvasRef.value.width, canvasRef.value.height)
+
+  // Draw
+  gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
+  gl.enableVertexAttribArray(posLoc)
+  gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0)
+  gl.drawArrays(gl.TRIANGLES, 0, 6)
+}
+
+function render() {
+  // Run multiple simulation steps per frame for faster evolution
+  for (let i = 0; i < 8; i++) {
+    simulate()
+  }
+
+  display()
+
+  animationFrame = requestAnimationFrame(render)
+}
+
+function onMouseMove(e) {
+  mouseX = e.clientX / window.innerWidth
+  mouseY = 1.0 - (e.clientY / window.innerHeight)
+  mouseActive = true
+}
+
+function onMouseLeave() {
+  mouseActive = false
+}
+
+function onTouchMove(e) {
+  e.preventDefault()
+  if (e.touches.length > 0) {
+    mouseX = e.touches[0].clientX / window.innerWidth
+    mouseY = 1.0 - (e.touches[0].clientY / window.innerHeight)
+    mouseActive = true
+  }
+}
+
+function onTouchEnd() {
+  mouseActive = false
+}
+
+function onResize() {
+  resizeCanvas()
+}
+
+onMounted(() => {
+  // Pick random preset and palette
+  currentPreset = PRESETS[Math.floor(Math.random() * PRESETS.length)]
+  currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)]
+
+  console.log('Starting reaction-diffusion with preset:', currentPreset.name)
+
+  if (initWebGL()) {
+    render()
+  }
+
+  window.addEventListener('resize', onResize)
+  window.addEventListener('mousemove', onMouseMove)
+  window.addEventListener('mouseleave', onMouseLeave)
+  window.addEventListener('touchmove', onTouchMove, { passive: false })
+  window.addEventListener('touchend', onTouchEnd)
 })
 
-const currentTypewriterText = computed(() => {
-  if (!showTypewriter.value) return ''
-  const charCount = Math.floor(transformationProgress.value * 5 * FULL_FILTER_TEXT.length)
-  return FULL_FILTER_TEXT.substring(0, Math.min(charCount, FULL_FILTER_TEXT.length))
+onUnmounted(() => {
+  if (animationFrame) {
+    cancelAnimationFrame(animationFrame)
+  }
+
+  window.removeEventListener('resize', onResize)
+  window.removeEventListener('mousemove', onMouseMove)
+  window.removeEventListener('mouseleave', onMouseLeave)
+  window.removeEventListener('touchmove', onTouchMove)
+  window.removeEventListener('touchend', onTouchEnd)
+
+  // Cleanup WebGL resources
+  if (gl) {
+    textures.forEach(t => gl.deleteTexture(t))
+    framebuffers.forEach(fb => gl.deleteFramebuffer(fb))
+    if (quadBuffer) gl.deleteBuffer(quadBuffer)
+    if (simulationProgram) gl.deleteProgram(simulationProgram)
+    if (displayProgram) gl.deleteProgram(displayProgram)
+  }
 })
-
-// Section visibility
-const showMacroSpace = computed(() => activeSection.value === 2)
-const showSpeed = computed(() => activeSection.value === 3)
-const showTrust = computed(() => activeSection.value === 4)
-const showZillow = computed(() => activeSection.value === 5)
-const showCTA = computed(() => activeSection.value === 6)
-
-// Hero text animation state
-const heroVisible = computed(() => activeSection.value === 0)
 </script>
 
 <template>
-  <div class="landing-page">
-    <!-- 3D Canvas (Desktop) -->
-    <div v-if="!shouldUseFallback" class="canvas-container">
-      <LandingScene
-        :scroll-progress="scrollProgress"
-        :active-section="activeSection"
-        :transformation-progress="transformationProgress"
-      />
-    </div>
+  <div class="landing">
+    <canvas ref="canvasRef" class="canvas"></canvas>
 
-    <!-- Mobile Fallback -->
-    <MobileScene
-      v-else
-      :scroll-progress="scrollProgress"
-      :active-section="activeSection"
-    />
-
-    <!-- 2D Overlay Elements -->
-    <div class="overlay-container">
-      <!-- Typewriter Filter (Transformation Section) -->
-      <TypewriterFilter
-        :text="currentTypewriterText"
-        :visible="showTypewriter"
-        :progress="transformationProgress"
-      />
-
-      <!-- Speed Comparison (Section 3) -->
-      <SpeedComparison
-        :progress="speedProgress"
-        :visible="showSpeed"
-      />
-
-      <!-- Trust Logos (Section 4) -->
-      <TrustLogos
-        :progress="trustProgress"
-        :visible="showTrust"
-      />
-
-      <!-- Zillow Filter (Section 5) -->
-      <ZillowFilter
-        :progress="zillowProgress"
-        :visible="showZillow"
-      />
-
-      <!-- Final CTA (Section 6) -->
-      <FinalCTA
-        :progress="ctaProgress"
-        :visible="showCTA"
-      />
-    </div>
-
-    <!-- Scrollable Content Sections -->
-    <div class="content-wrapper">
-      <!-- Section 0: Hero -->
-      <section class="section hero-section">
-        <div class="hero-content" :class="{ 'visible': heroVisible }">
-          <h1 class="hero-title">
-            Find Your
-            <span class="gradient-text">Perfect Meal</span>
-          </h1>
-          <p class="hero-subtitle">
-            Filter by protein. Filter by calories. Eat smarter.
-          </p>
-          <div class="scroll-hint">
-            <span>Scroll to explore</span>
-            <div class="scroll-arrow"></div>
-          </div>
-        </div>
-      </section>
-
-      <!-- Section 1: Transformation -->
-      <section class="section transformation-section">
-        <div class="section-label" v-show="activeSection === 1">
-          <span class="label-badge">THE FILTER</span>
-        </div>
-      </section>
-
-      <!-- Section 2: Macro Space -->
-      <section class="section macro-section">
-        <div class="section-label" v-show="activeSection === 2">
-          <span class="label-badge">3D NUTRITION</span>
-          <h2 class="section-title">
-            Every macro,
-            <span class="gradient-text">visualized</span>
-          </h2>
-        </div>
-      </section>
-
-      <!-- Section 3: Speed Comparison -->
-      <section class="section speed-section">
-        <!-- Content handled by SpeedComparison overlay -->
-      </section>
-
-      <!-- Section 4: Trust -->
-      <section class="section trust-section">
-        <!-- Content handled by TrustLogos overlay -->
-      </section>
-
-      <!-- Section 5: Zillow Filter -->
-      <section class="section zillow-section">
-        <!-- Content handled by ZillowFilter overlay -->
-      </section>
-
-      <!-- Section 6: CTA -->
-      <section class="section cta-section">
-        <!-- Content handled by FinalCTA overlay -->
-      </section>
-    </div>
-
-    <!-- Progress Indicator -->
-    <div class="progress-indicator">
-      <div
-        class="progress-bar"
-        :style="{ height: `${scrollProgress * 100}%` }"
-      ></div>
-      <div class="section-dots">
-        <div
-          v-for="i in 7"
-          :key="i"
-          class="dot"
-          :class="{ 'active': activeSection >= i - 1 }"
-        ></div>
-      </div>
+    <div class="content">
+      <h1 class="logo">Graze</h1>
+      <router-link to="/search" class="enter">
+        Enter
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M5 12h14M12 5l7 7-7 7"/>
+        </svg>
+      </router-link>
     </div>
   </div>
 </template>
 
 <style scoped>
-.landing-page {
+.landing {
+  position: fixed;
+  inset: 0;
   background: #0a0a0a;
-  color: white;
-  overflow-x: hidden;
+  overflow: hidden;
 }
 
-/* Canvas container */
-.canvas-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  z-index: 1;
-}
-
-/* Overlay for 2D elements */
-.overlay-container {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100vh;
-  z-index: 5;
-  pointer-events: none;
-}
-
-.overlay-container > * {
-  pointer-events: auto;
-}
-
-/* Scrollable content */
-.content-wrapper {
-  position: relative;
-  z-index: 2;
-  pointer-events: none;
-}
-
-.content-wrapper > * {
-  pointer-events: auto;
-}
-
-.section {
-  height: 100vh;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2rem;
-}
-
-/* 700vh total for 7 sections */
-.content-wrapper {
-  min-height: 700vh;
-}
-
-/* Hero Section */
-.hero-section {
-  position: relative;
-}
-
-.hero-content {
-  text-align: center;
-  max-width: 900px;
-  opacity: 0;
-  transform: translateY(30px);
-  transition: all 0.8s ease;
-}
-
-.hero-content.visible {
-  opacity: 1;
-  transform: translateY(0);
-}
-
-.hero-title {
-  font-size: clamp(2.5rem, 8vw, 6rem);
-  font-weight: 800;
-  line-height: 1.1;
-  margin-bottom: 1.5rem;
-  letter-spacing: -0.02em;
-}
-
-.gradient-text {
-  background: linear-gradient(135deg, #22c55e 0%, #14b8a6 50%, #06b6d4 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-}
-
-.hero-subtitle {
-  font-size: clamp(1rem, 2.5vw, 1.5rem);
-  color: rgba(255, 255, 255, 0.6);
-  margin-bottom: 3rem;
-}
-
-.scroll-hint {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 0.875rem;
-  animation: pulse 2s ease-in-out infinite;
-}
-
-.scroll-arrow {
-  width: 20px;
-  height: 20px;
-  border-right: 2px solid currentColor;
-  border-bottom: 2px solid currentColor;
-  transform: rotate(45deg);
-  animation: bounce 2s ease-in-out infinite;
-}
-
-@keyframes bounce {
-  0%, 100% { transform: rotate(45deg) translateY(0); }
-  50% { transform: rotate(45deg) translateY(6px); }
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 0.4; }
-  50% { opacity: 0.8; }
-}
-
-/* Section Labels */
-.section-label {
-  text-align: center;
-}
-
-.label-badge {
-  display: inline-block;
-  padding: 0.5rem 1rem;
-  background: rgba(34, 197, 94, 0.1);
-  border: 1px solid rgba(34, 197, 94, 0.3);
-  border-radius: 100px;
-  font-size: 0.75rem;
-  font-weight: 600;
-  letter-spacing: 0.1em;
-  color: #22c55e;
-  margin-bottom: 1rem;
-}
-
-.section-title {
-  font-size: clamp(1.75rem, 5vw, 3rem);
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-/* Progress Indicator */
-.progress-indicator {
-  position: fixed;
-  right: 1.5rem;
-  top: 50%;
-  transform: translateY(-50%);
-  z-index: 100;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-}
-
-.progress-bar {
-  width: 2px;
-  background: linear-gradient(to bottom, #22c55e, #14b8a6);
-  border-radius: 1px;
-  transition: height 0.1s ease;
+.canvas {
   position: absolute;
-  top: 0;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
-.section-dots {
+.content {
+  position: absolute;
+  inset: 0;
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 0.5rem 0;
+  justify-content: flex-end;
+  align-items: flex-start;
+  padding: 3rem;
+  pointer-events: none;
 }
 
-.dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.2);
-  transition: all 0.3s ease;
+.logo {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 300;
+  letter-spacing: -0.02em;
+  color: rgba(255, 255, 255, 0.9);
+  margin: 0 0 1.5rem 0;
+  mix-blend-mode: difference;
 }
 
-.dot.active {
-  background: #22c55e;
-  box-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+.enter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  color: rgba(255, 255, 255, 0.6);
+  text-decoration: none;
+  pointer-events: auto;
+  transition: color 0.3s ease;
 }
 
-/* Hide progress on mobile */
-@media (max-width: 768px) {
-  .progress-indicator {
-    display: none;
-  }
+.enter:hover {
+  color: rgba(255, 255, 255, 0.9);
+}
 
-  .section {
-    padding: 1rem;
-  }
+.enter svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.3s ease;
+}
 
-  .hero-title {
-    font-size: 2.5rem;
-  }
+.enter:hover svg {
+  transform: translateX(4px);
 }
 </style>
