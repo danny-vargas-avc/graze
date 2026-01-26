@@ -9,6 +9,11 @@ const routes = [
     component: LandingView,
   },
   {
+    path: '/loading',
+    name: 'loading',
+    component: () => import('./views/LoadingView.vue'),
+  },
+  {
     path: '/search',
     name: 'search',
     component: SearchView,

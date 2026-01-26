@@ -1,20 +1,29 @@
 <script setup>
 /**
- * Graze Landing Page - Reaction-Diffusion Art
- * Gray-Scott model using float textures for full precision
+ * Loading Page - "Chemical Breakdown" Transition
+ * Bridges landing (organic art) to search (functional app)
  */
-import { ref, onMounted, onUnmounted } from 'vue'
+import { ref, reactive, onMounted, onUnmounted } from 'vue'
 import { useRouter } from 'vue-router'
+import gsap from 'gsap'
 import { useTransitionStore } from '../stores/transition'
+import { useDishesStore } from '../stores/dishes'
 
 const router = useRouter()
 const transitionStore = useTransitionStore()
+const dishesStore = useDishesStore()
 
 const canvasRef = ref(null)
+const termRefs = ref([])
 let gl = null
 let animationFrame = null
+let masterTimeline = null
 
-// Pattern presets (f, k values that create interesting patterns)
+// Completion gates
+const animationComplete = ref(false)
+const dataReady = ref(false)
+
+// Presets/palettes (same as landing, used as fallback)
 const PRESETS = [
   { name: 'mitosis', f: 0.028, k: 0.062, seeds: 600 },
   { name: 'coral', f: 0.0545, k: 0.062, seeds: 20 },
@@ -24,33 +33,53 @@ const PRESETS = [
   { name: 'worms', f: 0.040, k: 0.060, seeds: 20 },
 ]
 
-// Color palettes (warm, organic tones)
 const PALETTES = [
-  { bg: [0.04, 0.04, 0.04], fg: [0.76, 0.55, 0.38] },  // charcoal + terracotta
-  { bg: [0.04, 0.04, 0.04], fg: [0.55, 0.65, 0.45] },  // charcoal + olive
-  { bg: [0.04, 0.04, 0.04], fg: [0.85, 0.70, 0.50] },  // charcoal + amber
-  { bg: [0.04, 0.04, 0.04], fg: [0.45, 0.55, 0.50] },  // charcoal + sage
+  { bg: [0.04, 0.04, 0.04], fg: [0.76, 0.55, 0.38] },
+  { bg: [0.04, 0.04, 0.04], fg: [0.55, 0.65, 0.45] },
+  { bg: [0.04, 0.04, 0.04], fg: [0.85, 0.70, 0.50] },
+  { bg: [0.04, 0.04, 0.04], fg: [0.45, 0.55, 0.50] },
+]
+
+const nutritionTerms = [
+  'PROTEIN', 'CARBOHYDRATE', 'LIPID', 'AMINO ACID',
+  'GLUCOSE', 'ENZYME', 'PEPTIDE', 'CALORIE',
+  'FIBER', 'MINERAL', 'VITAMIN', 'METABOLISM',
+  'OXIDATION', 'SYNTHESIS', 'CATALYSIS', 'ATP',
 ]
 
 // Simulation state
 let currentPreset = null
 let currentPalette = null
-let mouseX = 0.5
-let mouseY = 0.5
-let mouseActive = false
-let mouseRadius = 0.03
 let simWidth = 0
 let simHeight = 0
 
 // WebGL resources
 let simulationProgram = null
-let displayProgram = null
+let breakdownProgram = null
 let textures = []
 let framebuffers = []
 let currentTexture = 0
 let quadBuffer = null
 
-// Shader sources
+// Voronoi seeds for fracture effect
+const voronoiSeeds = new Float32Array(32)
+const voronoiSeedsAnimated = new Float32Array(32)
+
+// Phase uniforms driven by GSAP
+const phase = reactive({
+  dtMultiplier: 1.0,
+  stepsPerFrame: 8,
+  patternStrength: 1.0,
+  breakdownProgress: 0.0,
+  convergeProgress: 0.0,
+  fadeOut: 0.0,
+})
+
+// Foreground color for text styling
+const fgColorCSS = ref('rgba(255,255,255,0.6)')
+
+// --- Shaders ---
+
 const vertexShaderSource = `
   attribute vec2 a_position;
   varying vec2 v_uv;
@@ -67,9 +96,6 @@ const simulationShaderSource = `
   uniform vec2 u_resolution;
   uniform float u_feed;
   uniform float u_kill;
-  uniform vec2 u_mouse;
-  uniform float u_mouseActive;
-  uniform float u_mouseRadius;
   uniform float u_dt;
 
   varying vec2 v_uv;
@@ -77,16 +103,13 @@ const simulationShaderSource = `
   void main() {
     vec2 texel = 1.0 / u_resolution;
 
-    // Current state (stored in RG channels)
     vec4 state = texture2D(u_texture, v_uv);
     float a = state.r;
     float b = state.g;
 
-    // Laplacian with 9-point stencil
     float la = -a;
     float lb = -b;
 
-    // Cardinal directions (weight 0.2)
     la += texture2D(u_texture, v_uv + vec2(-texel.x, 0.0)).r * 0.2;
     la += texture2D(u_texture, v_uv + vec2(texel.x, 0.0)).r * 0.2;
     la += texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).r * 0.2;
@@ -97,7 +120,6 @@ const simulationShaderSource = `
     lb += texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).g * 0.2;
     lb += texture2D(u_texture, v_uv + vec2(0.0, texel.y)).g * 0.2;
 
-    // Diagonal directions (weight 0.05)
     la += texture2D(u_texture, v_uv + vec2(-texel.x, -texel.y)).r * 0.05;
     la += texture2D(u_texture, v_uv + vec2(texel.x, -texel.y)).r * 0.05;
     la += texture2D(u_texture, v_uv + vec2(-texel.x, texel.y)).r * 0.05;
@@ -108,32 +130,23 @@ const simulationShaderSource = `
     lb += texture2D(u_texture, v_uv + vec2(-texel.x, texel.y)).g * 0.05;
     lb += texture2D(u_texture, v_uv + vec2(texel.x, texel.y)).g * 0.05;
 
-    // Diffusion rates
     float Da = 1.0;
     float Db = 0.5;
-
-    // Feed and kill rates
     float f = u_feed;
     float k = u_kill;
 
-    // Mouse/touch interaction - adds B chemical
-    float mouseDist = distance(v_uv, u_mouse);
-    float mouseInfluence = smoothstep(u_mouseRadius, 0.0, mouseDist) * u_mouseActive;
-
-    // Gray-Scott equations
     float abb = a * b * b;
     float da = Da * la - abb + f * (1.0 - a);
     float db = Db * lb + abb - (k + f) * b;
 
-    // Update with timestep
     a = clamp(a + da * u_dt, 0.0, 1.0);
-    b = clamp(b + db * u_dt + mouseInfluence * 0.1, 0.0, 1.0);
+    b = clamp(b + db * u_dt, 0.0, 1.0);
 
     gl_FragColor = vec4(a, b, 0.0, 1.0);
   }
 `
 
-const displayShaderSource = `
+const breakdownShaderSource = `
   precision highp float;
 
   uniform sampler2D u_texture;
@@ -141,42 +154,101 @@ const displayShaderSource = `
   uniform vec3 u_bgColor;
   uniform vec3 u_fgColor;
 
+  // Phase uniforms
+  uniform float u_patternStrength;
+  uniform float u_breakdownProgress;
+  uniform float u_convergeProgress;
+  uniform float u_fadeOut;
+
+  // Voronoi seeds
+  uniform vec2 u_seeds[16];
+
   varying vec2 v_uv;
 
   void main() {
     vec2 texel = 1.0 / u_resolution;
 
-    // Sample B channel and neighbors for gradient
-    float b = texture2D(u_texture, v_uv).g;
-    float bL = texture2D(u_texture, v_uv + vec2(-texel.x, 0.0)).g;
-    float bR = texture2D(u_texture, v_uv + vec2(texel.x, 0.0)).g;
-    float bD = texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).g;
-    float bU = texture2D(u_texture, v_uv + vec2(0.0, texel.y)).g;
+    // --- Voronoi cell calculation ---
+    float minDist = 999.0;
+    float secondMinDist = 999.0;
+    vec2 nearestSeed = vec2(0.5);
+    int cellIdx = 0;
 
-    // Sobel-like gradient magnitude
+    for (int i = 0; i < 16; i++) {
+      float d = distance(v_uv, u_seeds[i]);
+      if (d < minDist) {
+        secondMinDist = minDist;
+        minDist = d;
+        cellIdx = i;
+        nearestSeed = u_seeds[i];
+      } else if (d < secondMinDist) {
+        secondMinDist = d;
+      }
+    }
+
+    // Edge factor: 0 at cell edge, ~1 deep inside cell
+    float edgeFactor = (secondMinDist - minDist) / (secondMinDist + minDist + 0.001);
+
+    // --- Fragment displacement ---
+    vec2 displaceDir = normalize(v_uv - nearestSeed + 0.001);
+    float displaceAmount = u_breakdownProgress * 0.1 * (1.0 - edgeFactor);
+
+    // Per-cell rotation
+    float cellAngle = float(cellIdx) * 2.399 + 0.5;
+    float rotAngle = u_breakdownProgress * cellAngle * 0.3;
+    vec2 localUV = v_uv - nearestSeed;
+    mat2 rot = mat2(cos(rotAngle), -sin(rotAngle), sin(rotAngle), cos(rotAngle));
+    vec2 rotatedLocal = rot * localUV;
+
+    // Displaced UV for sampling
+    vec2 sampleUV = nearestSeed + rotatedLocal + displaceDir * displaceAmount;
+    sampleUV = clamp(sampleUV, vec2(0.0), vec2(1.0));
+
+    // --- Sample simulation with gradient/emboss ---
+    float b = texture2D(u_texture, sampleUV).g;
+    float bL = texture2D(u_texture, sampleUV + vec2(-texel.x, 0.0)).g;
+    float bR = texture2D(u_texture, sampleUV + vec2(texel.x, 0.0)).g;
+    float bD = texture2D(u_texture, sampleUV + vec2(0.0, -texel.y)).g;
+    float bU = texture2D(u_texture, sampleUV + vec2(0.0, texel.y)).g;
+
     float gx = bR - bL;
     float gy = bU - bD;
     float edge = sqrt(gx * gx + gy * gy);
-
-    // Simulated light direction (top-left)
     float light = (gx + gy) * 2.0;
 
-    // Base color from B concentration
-    vec3 base = mix(u_bgColor, u_fgColor, b);
+    // Fade pattern by reducing B chemical influence
+    float bFaded = b * u_patternStrength;
+    float gxFaded = gx * u_patternStrength;
+    float gyFaded = gy * u_patternStrength;
+    float edgeFaded = edge * u_patternStrength;
+    float lightFaded = (gxFaded + gyFaded) * 2.0;
 
-    // Add embossed edges: bright on light side, dark on shadow side
-    vec3 highlight = base + vec3(0.12) * light;
-    vec3 color = highlight + edge * vec3(0.08);
+    vec3 base = mix(u_bgColor, u_fgColor, bFaded);
+    vec3 highlight = base + vec3(0.12) * lightFaded;
+    vec3 color = highlight + edgeFaded * vec3(0.08);
 
-    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
+    // --- Crack mask ---
+    float crackWidth = u_breakdownProgress * 0.15;
+    float crack = smoothstep(crackWidth, crackWidth + 0.02, edgeFactor);
+
+    // Gap color (slightly lighter bg for depth)
+    vec3 gapColor = u_bgColor * 0.3;
+    vec3 fragColor = mix(gapColor, color, crack);
+
+    // Fade toward search page bg (#f9fafb)
+    vec3 searchBg = vec3(0.976, 0.98, 0.984);
+    fragColor = mix(fragColor, searchBg, u_fadeOut);
+
+    gl_FragColor = vec4(clamp(fragColor, 0.0, 1.0), 1.0);
   }
 `
+
+// --- WebGL helpers ---
 
 function createShader(type, source) {
   const shader = gl.createShader(type)
   gl.shaderSource(shader, source)
   gl.compileShader(shader)
-
   if (!gl.getShaderParameter(shader, gl.COMPILE_STATUS)) {
     console.error('Shader compile error:', gl.getShaderInfoLog(shader))
     gl.deleteShader(shader)
@@ -188,7 +260,6 @@ function createShader(type, source) {
 function createProgram(vertexSource, fragmentSource) {
   const vertexShader = createShader(gl.VERTEX_SHADER, vertexSource)
   const fragmentShader = createShader(gl.FRAGMENT_SHADER, fragmentSource)
-
   if (!vertexShader || !fragmentShader) return null
 
   const program = gl.createProgram()
@@ -208,7 +279,7 @@ function initWebGL() {
   gl = canvas.getContext('webgl', {
     alpha: false,
     antialias: false,
-    preserveDrawingBuffer: false
+    preserveDrawingBuffer: false,
   })
 
   if (!gl) {
@@ -216,25 +287,21 @@ function initWebGL() {
     return false
   }
 
-  // Enable float textures for simulation precision
   const floatExt = gl.getExtension('OES_texture_float')
   if (!floatExt) {
     console.error('OES_texture_float not supported')
     return false
   }
-  // Optional: linear filtering for float textures
   gl.getExtension('OES_texture_float_linear')
 
-  // Create programs
   simulationProgram = createProgram(vertexShaderSource, simulationShaderSource)
-  displayProgram = createProgram(vertexShaderSource, displayShaderSource)
+  breakdownProgram = createProgram(vertexShaderSource, breakdownShaderSource)
 
-  if (!simulationProgram || !displayProgram) {
+  if (!simulationProgram || !breakdownProgram) {
     console.error('Failed to create shader programs')
     return false
   }
 
-  // Create quad geometry
   quadBuffer = gl.createBuffer()
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
   gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([
@@ -242,9 +309,7 @@ function initWebGL() {
     -1, 1, 1, -1, 1, 1
   ]), gl.STATIC_DRAW)
 
-  // Initialize textures and framebuffers
   resizeCanvas()
-
   return true
 }
 
@@ -259,22 +324,18 @@ function resizeCanvas() {
   canvas.style.width = window.innerWidth + 'px'
   canvas.style.height = window.innerHeight + 'px'
 
-  // Use lower resolution for simulation (performance)
   simWidth = Math.floor(width * 0.5)
   simHeight = Math.floor(height * 0.5)
 
-  // Recreate textures at new size
   createTextures()
 }
 
 function createTextures() {
-  // Clean up old resources
   textures.forEach(t => gl.deleteTexture(t))
   framebuffers.forEach(fb => gl.deleteFramebuffer(fb))
   textures = []
   framebuffers = []
 
-  // Create ping-pong textures using FLOAT for precision
   for (let i = 0; i < 2; i++) {
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
@@ -292,23 +353,19 @@ function createTextures() {
   }
 
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
-
-  // Initialize state
   initializeState()
 }
 
 function initializeState() {
   const data = new Float32Array(simWidth * simHeight * 4)
 
-  // Fill with A=1.0, B=0.0
   for (let i = 0; i < simWidth * simHeight; i++) {
-    data[i * 4 + 0] = 1.0  // A
-    data[i * 4 + 1] = 0.0  // B
+    data[i * 4 + 0] = 1.0
+    data[i * 4 + 1] = 0.0
     data[i * 4 + 2] = 0.0
     data[i * 4 + 3] = 1.0
   }
 
-  // Seed random spots of B chemical
   const baseSeeds = currentPreset ? currentPreset.seeds : 20
   const numSeeds = baseSeeds + Math.floor(Math.random() * Math.floor(baseSeeds * 0.5))
   for (let s = 0; s < numSeeds; s++) {
@@ -323,45 +380,42 @@ function initializeState() {
           const x = (cx + dx + simWidth) % simWidth
           const y = (cy + dy + simHeight) % simHeight
           const idx = (y * simWidth + x) * 4
-
           const falloff = 1.0 - (dist / radius)
-          data[idx + 0] = 0.5 + 0.25 * falloff  // A reduced
-          data[idx + 1] = 0.25 + 0.75 * falloff  // B seeded
+          data[idx + 0] = 0.5 + 0.25 * falloff
+          data[idx + 1] = 0.25 + 0.75 * falloff
         }
       }
     }
   }
 
-  // Upload to both textures
   for (let i = 0; i < 2; i++) {
     gl.bindTexture(gl.TEXTURE_2D, textures[i])
     gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.FLOAT, data)
   }
 }
 
-function simulate() {
+function warmUp(steps) {
+  for (let i = 0; i < steps; i++) {
+    simulate(1.0)
+  }
+}
+
+function simulate(dt) {
   gl.useProgram(simulationProgram)
 
-  // Bind source texture
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, textures[currentTexture])
   gl.uniform1i(gl.getUniformLocation(simulationProgram, 'u_texture'), 0)
 
-  // Set uniforms
   gl.uniform2f(gl.getUniformLocation(simulationProgram, 'u_resolution'), simWidth, simHeight)
   gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_feed'), currentPreset.f)
   gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_kill'), currentPreset.k)
-  gl.uniform2f(gl.getUniformLocation(simulationProgram, 'u_mouse'), mouseX, mouseY)
-  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_mouseActive'), mouseActive ? 1.0 : 0.0)
-  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_mouseRadius'), mouseRadius)
-  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_dt'), 1.0)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_dt'), dt)
 
-  // Render to other texture
   const nextTexture = 1 - currentTexture
   gl.bindFramebuffer(gl.FRAMEBUFFER, framebuffers[nextTexture])
   gl.viewport(0, 0, simWidth, simHeight)
 
-  // Draw
   const posLoc = gl.getAttribLocation(simulationProgram, 'a_position')
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
   gl.enableVertexAttribArray(posLoc)
@@ -371,147 +425,226 @@ function simulate() {
   currentTexture = nextTexture
 }
 
-function display() {
-  gl.useProgram(displayProgram)
+function displayBreakdown() {
+  gl.useProgram(breakdownProgram)
 
-  // Get locations
-  const texLoc = gl.getUniformLocation(displayProgram, 'u_texture')
-  const posLoc = gl.getAttribLocation(displayProgram, 'a_position')
+  // Update animated voronoi seeds
+  for (let i = 0; i < 32; i++) {
+    voronoiSeedsAnimated[i] = voronoiSeeds[i] +
+      (0.5 - voronoiSeeds[i]) * phase.convergeProgress
+  }
 
-  // Bind result texture (use current after simulation)
+  const texLoc = gl.getUniformLocation(breakdownProgram, 'u_texture')
+  const posLoc = gl.getAttribLocation(breakdownProgram, 'a_position')
+
   gl.activeTexture(gl.TEXTURE0)
   gl.bindTexture(gl.TEXTURE_2D, textures[currentTexture])
   gl.uniform1i(texLoc, 0)
 
-  // Set uniforms
-  gl.uniform2f(gl.getUniformLocation(displayProgram, 'u_resolution'), simWidth, simHeight)
-  gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_bgColor'),
+  gl.uniform2f(gl.getUniformLocation(breakdownProgram, 'u_resolution'), simWidth, simHeight)
+  gl.uniform3f(gl.getUniformLocation(breakdownProgram, 'u_bgColor'),
     currentPalette.bg[0], currentPalette.bg[1], currentPalette.bg[2])
-  gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_fgColor'),
+  gl.uniform3f(gl.getUniformLocation(breakdownProgram, 'u_fgColor'),
     currentPalette.fg[0], currentPalette.fg[1], currentPalette.fg[2])
 
-  // Render to screen
+  // Phase uniforms
+  gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_patternStrength'), phase.patternStrength)
+  gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_breakdownProgress'), phase.breakdownProgress)
+  gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_convergeProgress'), phase.convergeProgress)
+  gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_fadeOut'), phase.fadeOut)
+
+  // Voronoi seeds
+  gl.uniform2fv(gl.getUniformLocation(breakdownProgram, 'u_seeds[0]'), voronoiSeedsAnimated)
+
   gl.bindFramebuffer(gl.FRAMEBUFFER, null)
   gl.viewport(0, 0, canvasRef.value.width, canvasRef.value.height)
 
-  // Draw
   gl.bindBuffer(gl.ARRAY_BUFFER, quadBuffer)
   gl.enableVertexAttribArray(posLoc)
   gl.vertexAttribPointer(posLoc, 2, gl.FLOAT, false, 0, 0)
   gl.drawArrays(gl.TRIANGLES, 0, 6)
 }
 
+let firstFrame = true
+
 function render() {
-  // Run multiple simulation steps per frame for faster evolution
-  for (let i = 0; i < 8; i++) {
-    simulate()
+  const steps = Math.round(phase.stepsPerFrame)
+  for (let i = 0; i < steps; i++) {
+    simulate(phase.dtMultiplier)
   }
 
-  display()
+  displayBreakdown()
+
+  // Fade out screenshot after first frame
+  if (firstFrame) {
+    firstFrame = false
+    requestAnimationFrame(() => {
+      transitionStore.screenshotDataUrl = null
+    })
+  }
 
   animationFrame = requestAnimationFrame(render)
 }
 
-function onMouseMove(e) {
-  mouseX = e.clientX / window.innerWidth
-  mouseY = 1.0 - (e.clientY / window.innerHeight)
-  mouseActive = true
+// --- GSAP Timeline ---
+
+function buildTimeline() {
+  masterTimeline = gsap.timeline({
+    onComplete: () => {
+      animationComplete.value = true
+      checkReady()
+    },
+  })
+
+  // Phase 1: Fade out pattern (0-1.5s)
+  masterTimeline.to(phase, {
+    patternStrength: 0.0,
+    duration: 1.5,
+    ease: 'power1.out',
+  }, 0)
+
+  // Phase 2: Fracture (1.5-3s)
+  masterTimeline.to(phase, {
+    breakdownProgress: 1.0,
+    duration: 1.5,
+    ease: 'power2.inOut',
+  }, 1.5)
+
+  // Phase 3: Convergence (3-4s)
+  masterTimeline.to(phase, {
+    convergeProgress: 1.0,
+    duration: 1.0,
+    ease: 'power3.in',
+  }, 3.0)
+
+  // Phase 4: Fade out (4-4.5s)
+  masterTimeline.to(phase, {
+    fadeOut: 1.0,
+    duration: 1.2,
+    ease: 'power1.in',
+  }, 4.0)
+
+  // Text animations: staggered entrance (1.5-3s, alongside fracture)
+  termRefs.value.forEach((el, i) => {
+    if (!el) return
+    const startX = (Math.random() - 0.5) * 400
+    const startY = (Math.random() - 0.5) * 400
+    const targetOpacity = 0.5 + Math.random() * 0.6
+
+    gsap.set(el, { opacity: 0, x: startX, y: startY, scale: 0.5 + Math.random() })
+
+    masterTimeline.to(el, {
+      opacity: targetOpacity,
+      x: (Math.random() - 0.5) * 300,
+      y: (Math.random() - 0.5) * 200,
+      scale: 1,
+      duration: 1,
+      ease: 'power2.out',
+    }, 1.5 + i * 0.06)
+  })
+
+  // Text animations: converge and fade (3-4s)
+  masterTimeline.to('.nutrition-term', {
+    x: 0,
+    y: 0,
+    opacity: 0,
+    scale: 0.3,
+    duration: 1.0,
+    ease: 'power3.in',
+    stagger: 0.02,
+  }, 3.0)
 }
 
-function onMouseLeave() {
-  mouseActive = false
-}
+// --- Data & Navigation ---
 
-function onTouchMove(e) {
-  e.preventDefault()
-  if (e.touches.length > 0) {
-    mouseX = e.touches[0].clientX / window.innerWidth
-    mouseY = 1.0 - (e.touches[0].clientY / window.innerHeight)
-    mouseActive = true
+function checkReady() {
+  if (animationComplete.value && dataReady.value) {
+    transitionStore.clear()
+    router.replace('/search')
   }
 }
 
-function onTouchEnd() {
-  mouseActive = false
+async function prefetchData() {
+  try {
+    await dishesStore.fetchDishes()
+  } catch (e) {
+    // SearchView handles errors
+  }
+  dataReady.value = true
+  checkReady()
 }
 
-function onResize() {
-  resizeCanvas()
-}
-
-function enterApp() {
-  // Capture current frame as screenshot for seamless handoff
-  display()
-  const screenshotDataUrl = canvasRef.value.toDataURL('image/jpeg', 0.9)
-  transitionStore.capture(currentPreset, currentPalette, screenshotDataUrl)
-  router.push('/loading')
-}
+// --- Lifecycle ---
 
 onMounted(() => {
-  // Prefetch loading view chunk while user admires the art
-  import('./LoadingView.vue')
-
-  // Larger touch radius on mobile
-  const isMobile = 'ontouchstart' in window || window.innerWidth < 768
-  mouseRadius = isMobile ? 0.08 : 0.03
-
-  // Pick random preset and palette
-  currentPreset = PRESETS[Math.floor(Math.random() * PRESETS.length)]
-  currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)]
-
-  console.log('Starting reaction-diffusion with preset:', currentPreset.name)
-
-  if (initWebGL()) {
-    render()
+  // Get preset/palette from transition store or use random
+  if (transitionStore.preset) {
+    currentPreset = transitionStore.preset
+    currentPalette = transitionStore.palette
+  } else {
+    currentPreset = PRESETS[Math.floor(Math.random() * PRESETS.length)]
+    currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)]
   }
 
-  window.addEventListener('resize', onResize)
-  window.addEventListener('mousemove', onMouseMove)
-  window.addEventListener('mouseleave', onMouseLeave)
-  window.addEventListener('touchmove', onTouchMove, { passive: false })
-  window.addEventListener('touchend', onTouchEnd)
+  // Set text color from palette
+  const fg = currentPalette.fg
+  fgColorCSS.value = `rgba(${Math.round(fg[0]*255)}, ${Math.round(fg[1]*255)}, ${Math.round(fg[2]*255)}, 0.6)`
+
+  // Initialize Voronoi seeds
+  for (let i = 0; i < 16; i++) {
+    voronoiSeeds[i * 2] = 0.1 + Math.random() * 0.8
+    voronoiSeeds[i * 2 + 1] = 0.1 + Math.random() * 0.8
+  }
+
+  if (initWebGL()) {
+    // Warm up simulation to approximate where landing left off
+    warmUp(80)
+    render()
+
+    // Build and start GSAP timeline
+    requestAnimationFrame(() => {
+      buildTimeline()
+    })
+  }
+
+  // Start data fetch in parallel
+  prefetchData()
 })
 
 onUnmounted(() => {
-  if (animationFrame) {
-    cancelAnimationFrame(animationFrame)
-  }
+  if (animationFrame) cancelAnimationFrame(animationFrame)
+  if (masterTimeline) masterTimeline.kill()
 
-  window.removeEventListener('resize', onResize)
-  window.removeEventListener('mousemove', onMouseMove)
-  window.removeEventListener('mouseleave', onMouseLeave)
-  window.removeEventListener('touchmove', onTouchMove)
-  window.removeEventListener('touchend', onTouchEnd)
-
-  // Cleanup WebGL resources
   if (gl) {
     textures.forEach(t => gl.deleteTexture(t))
     framebuffers.forEach(fb => gl.deleteFramebuffer(fb))
     if (quadBuffer) gl.deleteBuffer(quadBuffer)
     if (simulationProgram) gl.deleteProgram(simulationProgram)
-    if (displayProgram) gl.deleteProgram(displayProgram)
+    if (breakdownProgram) gl.deleteProgram(breakdownProgram)
   }
 })
 </script>
 
 <template>
-  <div class="landing">
+  <div class="loading-page">
     <canvas ref="canvasRef" class="canvas"></canvas>
 
-    <div class="content">
-      <h1 class="logo">Graze</h1>
-      <button class="enter" @click="enterApp">
-        Enter
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M5 12h14M12 5l7 7-7 7"/>
-        </svg>
-      </button>
+    <div class="terms-container">
+      <span
+        v-for="(term, i) in nutritionTerms"
+        :key="i"
+        ref="termRefs"
+        class="nutrition-term"
+        :style="{ color: fgColorCSS }"
+      >
+        {{ term }}
+      </span>
     </div>
   </div>
 </template>
 
 <style scoped>
-.landing {
+.loading-page {
   position: fixed;
   inset: 0;
   background: #0a0a0a;
@@ -525,53 +658,22 @@ onUnmounted(() => {
   height: 100%;
 }
 
-.content {
+.terms-container {
   position: absolute;
   inset: 0;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-end;
-  align-items: flex-start;
-  padding: 3rem;
+  align-items: center;
+  justify-content: center;
   pointer-events: none;
 }
 
-.logo {
-  font-size: clamp(2.5rem, 8vw, 5rem);
-  font-weight: 300;
-  letter-spacing: -0.02em;
-  color: rgba(255, 255, 255, 0.9);
-  margin: 0 0 1.5rem 0;
-  mix-blend-mode: difference;
-}
-
-.enter {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
+.nutrition-term {
+  position: absolute;
   font-size: 0.875rem;
-  font-weight: 400;
-  letter-spacing: 0.05em;
-  color: rgba(255, 255, 255, 0.6);
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  pointer-events: auto;
-  transition: color 0.3s ease;
-}
-
-.enter:hover {
-  color: rgba(255, 255, 255, 0.9);
-}
-
-.enter svg {
-  width: 16px;
-  height: 16px;
-  transition: transform 0.3s ease;
-}
-
-.enter:hover svg {
-  transform: translateX(4px);
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  opacity: 0;
+  white-space: nowrap;
+  will-change: transform, opacity;
 }
 </style>
