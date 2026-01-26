@@ -1,7 +1,7 @@
 <script setup>
 /**
  * Graze Landing Page - Reaction-Diffusion Art
- * Gray-Scott model using standard UNSIGNED_BYTE textures for compatibility
+ * Gray-Scott model using float textures for full precision
  */
 import { ref, onMounted, onUnmounted } from 'vue'
 
@@ -11,12 +11,12 @@ let animationFrame = null
 
 // Pattern presets (f, k values that create interesting patterns)
 const PRESETS = [
-  { name: 'mitosis', f: 0.0367, k: 0.0649 },
-  { name: 'coral', f: 0.0545, k: 0.062 },
-  { name: 'maze', f: 0.029, k: 0.057 },
-  { name: 'spots', f: 0.035, k: 0.065 },
-  { name: 'waves', f: 0.014, k: 0.054 },
-  { name: 'worms', f: 0.078, k: 0.061 },
+  { name: 'mitosis', f: 0.028, k: 0.062, seeds: 600 },
+  { name: 'coral', f: 0.0545, k: 0.062, seeds: 20 },
+  { name: 'maze', f: 0.029, k: 0.057, seeds: 20 },
+  { name: 'bubbles', f: 0.012, k: 0.050, seeds: 25 },
+  { name: 'waves', f: 0.014, k: 0.045, seeds: 20 },
+  { name: 'worms', f: 0.040, k: 0.060, seeds: 20 },
 ]
 
 // Color palettes (warm, organic tones)
@@ -33,6 +33,7 @@ let currentPalette = null
 let mouseX = 0.5
 let mouseY = 0.5
 let mouseActive = false
+let mouseRadius = 0.03
 let simWidth = 0
 let simHeight = 0
 
@@ -63,6 +64,7 @@ const simulationShaderSource = `
   uniform float u_kill;
   uniform vec2 u_mouse;
   uniform float u_mouseActive;
+  uniform float u_mouseRadius;
   uniform float u_dt;
 
   varying vec2 v_uv;
@@ -109,9 +111,9 @@ const simulationShaderSource = `
     float f = u_feed;
     float k = u_kill;
 
-    // Mouse interaction - adds B chemical
+    // Mouse/touch interaction - adds B chemical
     float mouseDist = distance(v_uv, u_mouse);
-    float mouseInfluence = smoothstep(0.08, 0.0, mouseDist) * u_mouseActive;
+    float mouseInfluence = smoothstep(u_mouseRadius, 0.0, mouseDist) * u_mouseActive;
 
     // Gray-Scott equations
     float abb = a * b * b;
@@ -130,18 +132,38 @@ const displayShaderSource = `
   precision highp float;
 
   uniform sampler2D u_texture;
+  uniform vec2 u_resolution;
   uniform vec3 u_bgColor;
   uniform vec3 u_fgColor;
 
   varying vec2 v_uv;
 
   void main() {
-    vec4 state = texture2D(u_texture, v_uv);
-    // B chemical (green channel) drives the pattern visibility
-    float b = state.g;
-    // Mix background and foreground based on B concentration
-    vec3 color = mix(u_bgColor, u_fgColor, b);
-    gl_FragColor = vec4(color, 1.0);
+    vec2 texel = 1.0 / u_resolution;
+
+    // Sample B channel and neighbors for gradient
+    float b = texture2D(u_texture, v_uv).g;
+    float bL = texture2D(u_texture, v_uv + vec2(-texel.x, 0.0)).g;
+    float bR = texture2D(u_texture, v_uv + vec2(texel.x, 0.0)).g;
+    float bD = texture2D(u_texture, v_uv + vec2(0.0, -texel.y)).g;
+    float bU = texture2D(u_texture, v_uv + vec2(0.0, texel.y)).g;
+
+    // Sobel-like gradient magnitude
+    float gx = bR - bL;
+    float gy = bU - bD;
+    float edge = sqrt(gx * gx + gy * gy);
+
+    // Simulated light direction (top-left)
+    float light = (gx + gy) * 2.0;
+
+    // Base color from B concentration
+    vec3 base = mix(u_bgColor, u_fgColor, b);
+
+    // Add embossed edges: bright on light side, dark on shadow side
+    vec3 highlight = base + vec3(0.12) * light;
+    vec3 color = highlight + edge * vec3(0.08);
+
+    gl_FragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
   }
 `
 
@@ -188,6 +210,15 @@ function initWebGL() {
     console.error('WebGL not supported')
     return false
   }
+
+  // Enable float textures for simulation precision
+  const floatExt = gl.getExtension('OES_texture_float')
+  if (!floatExt) {
+    console.error('OES_texture_float not supported')
+    return false
+  }
+  // Optional: linear filtering for float textures
+  gl.getExtension('OES_texture_float_linear')
 
   // Create programs
   simulationProgram = createProgram(vertexShaderSource, simulationShaderSource)
@@ -238,11 +269,11 @@ function createTextures() {
   textures = []
   framebuffers = []
 
-  // Create ping-pong textures using UNSIGNED_BYTE
+  // Create ping-pong textures using FLOAT for precision
   for (let i = 0; i < 2; i++) {
     const texture = gl.createTexture()
     gl.bindTexture(gl.TEXTURE_2D, texture)
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.FLOAT, null)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST)
     gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE)
@@ -262,22 +293,23 @@ function createTextures() {
 }
 
 function initializeState() {
-  const data = new Uint8Array(simWidth * simHeight * 4)
+  const data = new Float32Array(simWidth * simHeight * 4)
 
-  // Fill with A=1 (255), B=0
+  // Fill with A=1.0, B=0.0
   for (let i = 0; i < simWidth * simHeight; i++) {
-    data[i * 4 + 0] = 255  // A = 1.0
-    data[i * 4 + 1] = 0    // B = 0.0
-    data[i * 4 + 2] = 0
-    data[i * 4 + 3] = 255
+    data[i * 4 + 0] = 1.0  // A
+    data[i * 4 + 1] = 0.0  // B
+    data[i * 4 + 2] = 0.0
+    data[i * 4 + 3] = 1.0
   }
 
-  // Seed random spots of B chemical - make them bigger and more numerous
-  const numSeeds = 30 + Math.floor(Math.random() * 20)
+  // Seed random spots of B chemical
+  const baseSeeds = currentPreset ? currentPreset.seeds : 20
+  const numSeeds = baseSeeds + Math.floor(Math.random() * Math.floor(baseSeeds * 0.5))
   for (let s = 0; s < numSeeds; s++) {
     const cx = Math.floor(Math.random() * simWidth)
     const cy = Math.floor(Math.random() * simHeight)
-    const radius = 10 + Math.floor(Math.random() * 25)
+    const radius = 8 + Math.floor(Math.random() * 20)
 
     for (let dy = -radius; dy <= radius; dy++) {
       for (let dx = -radius; dx <= radius; dx++) {
@@ -286,23 +318,19 @@ function initializeState() {
           const x = (cx + dx + simWidth) % simWidth
           const y = (cy + dy + simHeight) % simHeight
           const idx = (y * simWidth + x) * 4
-          
-          // Gradual falloff from center
+
           const falloff = 1.0 - (dist / radius)
-          data[idx + 0] = Math.floor(128 + 64 * falloff)  // A reduced in center
-          data[idx + 1] = Math.floor(128 + 127 * falloff)  // B high in center
+          data[idx + 0] = 0.5 + 0.25 * falloff  // A reduced
+          data[idx + 1] = 0.25 + 0.75 * falloff  // B seeded
         }
       }
     }
   }
 
-  // Set pixel store alignment for texture upload
-  gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1)
-
   // Upload to both textures
   for (let i = 0; i < 2; i++) {
     gl.bindTexture(gl.TEXTURE_2D, textures[i])
-    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, data)
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, simWidth, simHeight, 0, gl.RGBA, gl.FLOAT, data)
   }
 }
 
@@ -320,6 +348,7 @@ function simulate() {
   gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_kill'), currentPreset.k)
   gl.uniform2f(gl.getUniformLocation(simulationProgram, 'u_mouse'), mouseX, mouseY)
   gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_mouseActive'), mouseActive ? 1.0 : 0.0)
+  gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_mouseRadius'), mouseRadius)
   gl.uniform1f(gl.getUniformLocation(simulationProgram, 'u_dt'), 1.0)
 
   // Render to other texture
@@ -349,7 +378,8 @@ function display() {
   gl.bindTexture(gl.TEXTURE_2D, textures[currentTexture])
   gl.uniform1i(texLoc, 0)
 
-  // Set colors
+  // Set uniforms
+  gl.uniform2f(gl.getUniformLocation(displayProgram, 'u_resolution'), simWidth, simHeight)
   gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_bgColor'),
     currentPalette.bg[0], currentPalette.bg[1], currentPalette.bg[2])
   gl.uniform3f(gl.getUniformLocation(displayProgram, 'u_fgColor'),
@@ -405,6 +435,10 @@ function onResize() {
 }
 
 onMounted(() => {
+  // Larger touch radius on mobile
+  const isMobile = 'ontouchstart' in window || window.innerWidth < 768
+  mouseRadius = isMobile ? 0.08 : 0.03
+
   // Pick random preset and palette
   currentPreset = PRESETS[Math.floor(Math.random() * PRESETS.length)]
   currentPalette = PALETTES[Math.floor(Math.random() * PALETTES.length)]
