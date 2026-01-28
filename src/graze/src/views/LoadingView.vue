@@ -232,7 +232,7 @@ const breakdownShaderSource = `
     float crack = smoothstep(crackWidth, crackWidth + 0.02, edgeFactor);
 
     // Gap color (slightly lighter bg for depth)
-    vec3 gapColor = u_bgColor * 0.3;
+    vec3 gapColor = u_bgColor * 0.1;
     vec3 fragColor = mix(gapColor, color, crack);
 
     // Fade toward search page bg (#f9fafb)

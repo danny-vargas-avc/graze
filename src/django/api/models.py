@@ -10,6 +10,7 @@ class Restaurant(models.Model):
     logo_url = models.URLField(blank=True)
     nutrition_source_url = models.URLField(blank=True)
     item_count = models.PositiveIntegerField(default=0)
+    location_count = models.PositiveIntegerField(default=0)
     last_updated = models.DateTimeField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -22,6 +23,10 @@ class Restaurant(models.Model):
     def update_item_count(self):
         self.item_count = self.menu_items.filter(is_available=True).count()
         self.save(update_fields=['item_count'])
+
+    def update_location_count(self):
+        self.location_count = self.locations.filter(is_active=True).count()
+        self.save(update_fields=['location_count'])
 
 
 class MenuItem(models.Model):
@@ -100,3 +105,74 @@ class DataFlag(models.Model):
     def __str__(self):
         item = self.menu_item.name if self.menu_item else 'No item'
         return f"{self.flag_type}: {item}"
+
+
+class RestaurantLocation(models.Model):
+    """Physical restaurant locations with geospatial data."""
+
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='locations')
+    osm_id = models.BigIntegerField(null=True, blank=True, db_index=True, help_text='OpenStreetMap ID')
+    name = models.CharField(max_length=255, help_text='Location name (e.g., "Chipotle - Union Square")')
+
+    # Coordinates
+    latitude = models.DecimalField(max_digits=10, decimal_places=7)
+    longitude = models.DecimalField(max_digits=10, decimal_places=7)
+
+    # Address
+    address = models.CharField(max_length=255, blank=True)
+    city = models.CharField(max_length=100, blank=True)
+    state = models.CharField(max_length=2, blank=True)
+    postcode = models.CharField(max_length=20, blank=True)
+    country = models.CharField(max_length=2, default='US')
+
+    # Contact
+    phone = models.CharField(max_length=50, blank=True)
+    website = models.URLField(blank=True)
+
+    # Status
+    is_active = models.BooleanField(default=True, db_index=True)
+    is_verified = models.BooleanField(default=False, help_text='Verified by admin or user')
+
+    # Data source
+    data_source = models.CharField(max_length=50, default='osm', help_text='osm, user_submission, manual')
+    osm_amenity_type = models.CharField(max_length=50, blank=True, help_text='fast_food, restaurant')
+
+    # Metadata
+    last_verified = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['restaurant__name', 'city']
+        indexes = [
+            models.Index(fields=['restaurant']),
+            models.Index(fields=['latitude', 'longitude']),
+            models.Index(fields=['state']),
+        ]
+
+    def __str__(self):
+        return f"{self.restaurant.name} - {self.city}, {self.state}"
+
+
+class LocationFlag(models.Model):
+    """User-reported issues with restaurant locations."""
+
+    FLAG_TYPES = [
+        ('closed', 'Location Closed'),
+        ('wrong_address', 'Wrong Address'),
+        ('duplicate', 'Duplicate Entry'),
+        ('missing', 'Location Missing'),
+    ]
+
+    location = models.ForeignKey(RestaurantLocation, on_delete=models.CASCADE, related_name='flags')
+    flag_type = models.CharField(max_length=50, choices=FLAG_TYPES)
+    user_comment = models.TextField(blank=True)
+    user_ip = models.GenericIPAddressField(null=True, blank=True)
+    resolved = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.flag_type}: {self.location}"
