@@ -28,6 +28,11 @@ const routes = [
     name: 'restaurant-detail',
     component: () => import('./views/RestaurantView.vue'),
   },
+  {
+    path: '/map-test',
+    name: 'map-test',
+    component: () => import('./views/MapTestView.vue'),
+  },
 ]
 
 const router = createRouter({

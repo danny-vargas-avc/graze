@@ -1,0 +1,461 @@
+<template>
+  <div ref="mapContainer" class="map-container"></div>
+</template>
+
+<script setup>
+import { ref, onMounted, onUnmounted, watch } from 'vue'
+import mapboxgl from 'mapbox-gl'
+import Supercluster from 'supercluster'
+import 'mapbox-gl/dist/mapbox-gl.css'
+
+const props = defineProps({
+  center: {
+    type: Array,
+    default: () => [-122.4194, 37.7749] // San Francisco [lng, lat]
+  },
+  zoom: {
+    type: Number,
+    default: 10
+  },
+  locations: {
+    type: Array,
+    default: () => []
+  },
+  userLocation: {
+    type: Object,
+    default: null // { lat, lng }
+  }
+})
+
+const emit = defineEmits(['move', 'load', 'marker-click', 'bounds-change'])
+
+const mapContainer = ref(null)
+let map = null
+let clusterIndex = null
+let boundsChangeTimeout = null
+
+// Restaurant color mapping
+const restaurantColors = {
+  'chipotle': '#A81612',
+  'cava': '#F4A261',
+  'sweetgreen': '#6DBF4B',
+  'panera': '#5C8B3E',
+  'chick-fil-a': '#E51937',
+  'default': '#3B82F6'
+}
+
+// Initialize Supercluster
+const initCluster = () => {
+  clusterIndex = new Supercluster({
+    radius: 60,
+    maxZoom: 14,
+    minZoom: 0,
+    minPoints: 2
+  })
+}
+
+// Convert locations to GeoJSON
+const createGeoJSON = (locations) => {
+  return {
+    type: 'FeatureCollection',
+    features: locations.map(location => ({
+      type: 'Feature',
+      geometry: {
+        type: 'Point',
+        coordinates: [location.longitude, location.latitude]
+      },
+      properties: {
+        id: location.id,
+        name: location.name,
+        restaurant: location.restaurant,
+        restaurantSlug: location.restaurant?.slug || 'default',
+        color: restaurantColors[location.restaurant?.slug] || restaurantColors.default
+      }
+    }))
+  }
+}
+
+// Load locations into cluster index
+const loadClusters = () => {
+  if (!clusterIndex || !props.locations || props.locations.length === 0) return
+
+  const geojson = createGeoJSON(props.locations)
+  clusterIndex.load(geojson.features)
+}
+
+// Get clusters for current map view
+const getClusters = () => {
+  if (!map || !clusterIndex) return []
+
+  const bounds = map.getBounds()
+  const zoom = map.getZoom()
+
+  return clusterIndex.getClusters(
+    [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
+    Math.floor(zoom)
+  )
+}
+
+// Update user location marker
+const updateUserLocation = () => {
+  if (!map || !map.isStyleLoaded()) return
+
+  const sourceId = 'user-location'
+  const layerId = 'user-location-marker'
+  const pulseLayerId = 'user-location-pulse'
+
+  // Remove existing layers and source
+  if (map.getLayer(pulseLayerId)) map.removeLayer(pulseLayerId)
+  if (map.getLayer(layerId)) map.removeLayer(layerId)
+  if (map.getSource(sourceId)) map.removeSource(sourceId)
+
+  // Add user location if provided
+  if (props.userLocation && props.userLocation.lat && props.userLocation.lng) {
+    const userGeoJSON = {
+      type: 'FeatureCollection',
+      features: [{
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [props.userLocation.lng, props.userLocation.lat]
+        },
+        properties: {}
+      }]
+    }
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: userGeoJSON
+    })
+
+    // Outer pulse circle
+    map.addLayer({
+      id: pulseLayerId,
+      type: 'circle',
+      source: sourceId,
+      paint: {
+        'circle-radius': 20,
+        'circle-color': '#3B82F6',
+        'circle-opacity': 0.2,
+        'circle-stroke-color': '#3B82F6',
+        'circle-stroke-width': 1,
+        'circle-stroke-opacity': 0.3
+      }
+    })
+
+    // Inner blue dot
+    map.addLayer({
+      id: layerId,
+      type: 'circle',
+      source: sourceId,
+      paint: {
+        'circle-radius': 10,
+        'circle-color': '#3B82F6',
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 3,
+        'circle-opacity': 1
+      }
+    })
+
+    // Pan map to user location
+    map.easeTo({
+      center: [props.userLocation.lng, props.userLocation.lat],
+      duration: 1000
+    })
+  }
+}
+
+// Update markers on map
+const updateMarkers = () => {
+  if (!map || !map.isStyleLoaded()) return
+
+  const clusterLayerId = 'clusters'
+  const clusterCountLayerId = 'cluster-count'
+  const unclusteredLayerId = 'unclustered-points'
+  const sourceId = 'locations'
+
+  // Remove existing layers and source
+  if (map.getLayer(clusterCountLayerId)) map.removeLayer(clusterCountLayerId)
+  if (map.getLayer(clusterLayerId)) map.removeLayer(clusterLayerId)
+  if (map.getLayer(unclusteredLayerId)) map.removeLayer(unclusteredLayerId)
+  if (map.getSource(sourceId)) map.removeSource(sourceId)
+
+  // Add new source and layers if we have locations
+  if (props.locations && props.locations.length > 0) {
+    // Load locations into cluster index
+    loadClusters()
+
+    // Get clusters for current view
+    const clusters = getClusters()
+
+    // Create GeoJSON from clusters
+    const clusterGeoJSON = {
+      type: 'FeatureCollection',
+      features: clusters
+    }
+
+    map.addSource(sourceId, {
+      type: 'geojson',
+      data: clusterGeoJSON
+    })
+
+    // Cluster circles
+    map.addLayer({
+      id: clusterLayerId,
+      type: 'circle',
+      source: sourceId,
+      filter: ['has', 'point_count'],
+      paint: {
+        'circle-color': [
+          'step',
+          ['get', 'point_count'],
+          '#51bbd6', 10,
+          '#f1f075', 30,
+          '#f28cb1'
+        ],
+        'circle-radius': [
+          'step',
+          ['get', 'point_count'],
+          20, 10,
+          30, 30,
+          40
+        ],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2
+      }
+    })
+
+    // Cluster count labels
+    map.addLayer({
+      id: clusterCountLayerId,
+      type: 'symbol',
+      source: sourceId,
+      filter: ['has', 'point_count'],
+      layout: {
+        'text-field': '{point_count_abbreviated}',
+        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+        'text-size': 14
+      },
+      paint: {
+        'text-color': '#ffffff'
+      }
+    })
+
+    // Individual location markers
+    map.addLayer({
+      id: unclusteredLayerId,
+      type: 'circle',
+      source: sourceId,
+      filter: ['!', ['has', 'point_count']],
+      paint: {
+        'circle-radius': 8,
+        'circle-color': ['get', 'color'],
+        'circle-stroke-color': '#ffffff',
+        'circle-stroke-width': 2,
+        'circle-opacity': 0.9
+      }
+    })
+
+    // Handle cluster click - zoom to cluster bounds
+    map.on('click', clusterLayerId, (e) => {
+      const features = map.queryRenderedFeatures(e.point, {
+        layers: [clusterLayerId]
+      })
+
+      if (features.length > 0) {
+        const clusterId = features[0].properties.cluster_id
+        const zoom = map.getZoom()
+        const expansionZoom = clusterIndex.getClusterExpansionZoom(clusterId)
+
+        map.easeTo({
+          center: features[0].geometry.coordinates,
+          zoom: expansionZoom
+        })
+      }
+    })
+
+    // Handle individual marker click
+    map.on('click', unclusteredLayerId, (e) => {
+      if (e.features && e.features.length > 0) {
+        const feature = e.features[0]
+        emit('marker-click', {
+          id: feature.properties.id,
+          name: feature.properties.name,
+          restaurant: JSON.parse(feature.properties.restaurant),
+          coordinates: feature.geometry.coordinates
+        })
+      }
+    })
+
+    // Handle hover cursor
+    map.on('mouseenter', clusterLayerId, () => {
+      map.getCanvas().style.cursor = 'pointer'
+    })
+
+    map.on('mouseleave', clusterLayerId, () => {
+      map.getCanvas().style.cursor = ''
+    })
+
+    map.on('mouseenter', unclusteredLayerId, () => {
+      map.getCanvas().style.cursor = 'pointer'
+    })
+
+    map.on('mouseleave', unclusteredLayerId, () => {
+      map.getCanvas().style.cursor = ''
+    })
+  }
+}
+
+onMounted(() => {
+  // Initialize cluster index
+  initCluster()
+
+  // Set Mapbox access token
+  mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
+
+  // Initialize map
+  map = new mapboxgl.Map({
+    container: mapContainer.value,
+    style: 'mapbox://styles/mapbox/streets-v12',
+    center: props.center,
+    zoom: props.zoom
+  })
+
+  // Add map controls
+  map.addControl(new mapboxgl.NavigationControl(), 'top-right')
+  map.addControl(
+    new mapboxgl.GeolocateControl({
+      positionOptions: {
+        enableHighAccuracy: true
+      },
+      trackUserLocation: true,
+      showUserHeading: true
+    }),
+    'top-right'
+  )
+
+  // Handle map load
+  map.on('load', () => {
+    updateMarkers()
+    updateUserLocation()
+    emit('load', map)
+  })
+
+  // Handle map movement (pan/zoom) - update clusters
+  map.on('moveend', () => {
+    const bounds = map.getBounds()
+    const center = map.getCenter()
+    const zoom = map.getZoom()
+
+    // Update clusters for new view
+    updateMarkers()
+
+    const boundsData = {
+      bounds: {
+        sw: [bounds.getWest(), bounds.getSouth()],
+        ne: [bounds.getEast(), bounds.getNorth()],
+        swLat: bounds.getSouth(),
+        swLng: bounds.getWest(),
+        neLat: bounds.getNorth(),
+        neLng: bounds.getEast()
+      },
+      center: [center.lng, center.lat],
+      zoom: zoom
+    }
+
+    // Emit immediate move event (for UI updates)
+    emit('move', boundsData)
+
+    // Emit debounced bounds-change event (for API calls)
+    if (boundsChangeTimeout) {
+      clearTimeout(boundsChangeTimeout)
+    }
+    boundsChangeTimeout = setTimeout(() => {
+      emit('bounds-change', {
+        bbox: `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`,
+        swLat: bounds.getSouth(),
+        swLng: bounds.getWest(),
+        neLat: bounds.getNorth(),
+        neLng: bounds.getEast(),
+        center: [center.lng, center.lat],
+        zoom: zoom
+      })
+    }, 300)
+  })
+
+  // Handle window resize
+  const handleResize = () => {
+    if (map) {
+      map.resize()
+    }
+  }
+  window.addEventListener('resize', handleResize)
+
+  // Store cleanup function
+  map._handleResize = handleResize
+})
+
+onUnmounted(() => {
+  // Clear debounce timeout
+  if (boundsChangeTimeout) {
+    clearTimeout(boundsChangeTimeout)
+    boundsChangeTimeout = null
+  }
+
+  if (map) {
+    // Remove resize listener
+    if (map._handleResize) {
+      window.removeEventListener('resize', map._handleResize)
+    }
+    // Remove map
+    map.remove()
+    map = null
+  }
+  // Clean up cluster index
+  clusterIndex = null
+})
+
+// Watch for center prop changes
+watch(() => props.center, (newCenter) => {
+  if (map && newCenter) {
+    map.setCenter(newCenter)
+  }
+})
+
+// Watch for zoom prop changes
+watch(() => props.zoom, (newZoom) => {
+  if (map && newZoom !== undefined) {
+    map.setZoom(newZoom)
+  }
+})
+
+// Watch for locations prop changes
+watch(() => props.locations, () => {
+  if (map && map.isStyleLoaded()) {
+    // Reinitialize cluster with new locations
+    if (!clusterIndex) {
+      initCluster()
+    }
+    updateMarkers()
+  }
+}, { deep: true })
+
+// Watch for userLocation prop changes
+watch(() => props.userLocation, (newLocation) => {
+  if (map && map.isStyleLoaded() && newLocation) {
+    updateUserLocation()
+  }
+}, { deep: true })
+
+// Expose map instance for parent components
+defineExpose({
+  getMap: () => map
+})
+</script>
+
+<style scoped>
+.map-container {
+  width: 100%;
+  height: 100%;
+}
+</style>
