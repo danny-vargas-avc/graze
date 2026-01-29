@@ -1,3 +1,4 @@
+
 #!/usr/bin/env python3
 """
 OpenStreetMap Restaurant Location Scraper - Proof of Concept

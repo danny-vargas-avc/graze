@@ -1,28 +1,51 @@
 <template>
   <div class="map-test-view">
-    <div class="map-wrapper">
-      <MapView
-        :center="center"
-        :zoom="zoom"
-        :locations="locations"
-        :userLocation="userLocation"
-        @move="handleMapMove"
-        @load="handleMapLoad"
-        @marker-click="handleMarkerClick"
-        @bounds-change="handleBoundsChange"
-      />
+    <div class="view-controls">
+      <ViewToggle v-model="currentView" :is-mobile="isMobile" @change="handleViewChange" />
     </div>
-    <div class="info-panel">
+
+    <div class="content-area">
+      <div v-show="currentView === 'list' || !isMobile" class="list-panel">
+        <LocationList
+          :locations="locations"
+          :total="locationsStore.total"
+          :radius="locationsStore.radius"
+          :loading="loading"
+          :error="locationsStore.error"
+          :highlighted-id="highlightedLocationId"
+          @location-click="handleLocationClick"
+          @view-menu="handleViewMenu"
+          @report-issue="handleReportIssue"
+        />
+      </div>
+
+      <div v-show="currentView === 'map' || !isMobile" class="map-panel">
+        <MapView
+          :center="center"
+          :zoom="zoom"
+          :locations="locations"
+          :userLocation="userLocation"
+          @move="handleMapMove"
+          @load="handleMapLoad"
+          @marker-click="handleMarkerClick"
+          @bounds-change="handleBoundsChange"
+        />
+      </div>
+    </div>
+
+    <div class="debug-panel">
       <h2>Map Test View</h2>
       <div v-if="mapLoaded">
         <p>✓ Map loaded successfully</p>
-        <p>Locations: {{ locations.length }}</p>
+        <p>Store locations: {{ locationsStore.total }}</p>
+        <p>Displayed: {{ locations.length }}</p>
         <p>Zoom: {{ mapInfo.zoom?.toFixed(1) }}</p>
+        <p v-if="loading" class="loading-text">⏳ Loading...</p>
 
         <h3>Bounds Tracking</h3>
-        <p>Bounds changes (debounced): {{ boundsChangeCount }}</p>
-        <p v-if="lastBoundsChange">Last change: {{ lastBoundsChange }}</p>
-        <p class="help-text">Pan/zoom the map to trigger bounds-change events (300ms debounce)</p>
+        <p>Bounds changes: {{ boundsChangeCount }}</p>
+        <p v-if="lastBoundsChange">Last: {{ lastBoundsChange }}</p>
+        <p class="help-text">Pan/zoom triggers auto-fetch (300ms debounce)</p>
 
         <div class="button-group">
           <button @click="loadLocations" :disabled="loading">
@@ -32,18 +55,21 @@
 
         <h3>User Location</h3>
         <div class="button-group">
-          <button @click="setUserLocation" :disabled="!!userLocation">
+          <button @click="setUserLocation" :disabled="loading || !!userLocation">
             Set SF Location
           </button>
-          <button @click="getUserLocation" :disabled="!!userLocation">
+          <button @click="getUserLocation" :disabled="loading || !!userLocation">
             Get My Location
           </button>
-          <button @click="clearUserLocation" :disabled="!userLocation">
+          <button @click="clearUserLocation" :disabled="loading || !userLocation">
             Clear Location
           </button>
         </div>
         <p v-if="userLocation">
           📍 {{ userLocation.lat.toFixed(4) }}, {{ userLocation.lng.toFixed(4) }}
+        </p>
+        <p v-if="locationsStore.error" class="error-text">
+          ❌ {{ locationsStore.error.message }}
         </p>
 
         <div v-if="selectedMarker" class="selected-marker">
@@ -60,17 +86,24 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
-import axios from 'axios'
+import { ref, watch, computed, onMounted, onUnmounted } from 'vue'
+import { storeToRefs } from 'pinia'
 import MapView from '../components/MapView.vue'
+import ViewToggle from '../components/ViewToggle.vue'
+import LocationList from '../components/LocationList.vue'
+import { useLocationsStore } from '../stores/locations'
+
+const locationsStore = useLocationsStore()
+const { locations, userLocation, loading } = storeToRefs(locationsStore)
+
+const currentView = ref('map')
+const isMobile = ref(window.innerWidth < 768)
+const highlightedLocationId = ref(null)
 
 const center = ref([-122.4194, 37.7749]) // San Francisco
 const zoom = ref(9)  // Zoomed out to see clustering
 const mapLoaded = ref(false)
-const loading = ref(false)
-const locations = ref([])
 const selectedMarker = ref(null)
-const userLocation = ref(null)
 const mapInfo = ref({
   center: [],
   zoom: 0,
@@ -89,79 +122,100 @@ const handleMapLoad = (map) => {
   loadLocations()
 }
 
+// Watch for store locations updates
+watch(() => locationsStore.locations, (newLocations) => {
+  console.log('Store locations updated:', newLocations.length, 'locations')
+}, { deep: true })
+
+const handleViewChange = (view) => {
+  console.log('View changed to:', view)
+}
+
+const handleLocationClick = (location) => {
+  highlightedLocationId.value = location.id
+  selectedMarker.value = location
+  console.log('Location clicked from list:', location)
+}
+
+const handleViewMenu = (location) => {
+  console.log('View menu for:', location.restaurant.name)
+  // TODO: Navigate to /search with restaurant filter
+}
+
+const handleReportIssue = (location) => {
+  console.log('Report issue for:', location.name)
+  // TODO: Open flag form modal
+}
+
+// Handle window resize for mobile detection
+const handleResize = () => {
+  isMobile.value = window.innerWidth < 768
+}
+
+onMounted(() => {
+  window.addEventListener('resize', handleResize)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', handleResize)
+})
+
 const handleMapMove = (data) => {
   mapInfo.value = data
   console.log('Map moved:', data)
 }
 
 const handleMarkerClick = (location) => {
+  highlightedLocationId.value = location.id
   selectedMarker.value = location
-  console.log('Marker clicked:', location)
+  console.log('Marker clicked from map:', location)
+
+  // Switch to list view on mobile to show the selected location
+  if (isMobile.value) {
+    currentView.value = 'list'
+  }
 }
 
 const handleBoundsChange = (data) => {
   boundsChangeCount.value++
   lastBoundsChange.value = new Date().toLocaleTimeString()
   console.log('Bounds changed (debounced):', data)
-  console.log('Bbox string:', data.bbox)
+
+  // Update store with new bounds
+  locationsStore.setMapBounds(data)
+
+  // Fetch locations for new bounds
+  locationsStore.fetchLocations({ bbox: data.bbox })
 }
 
 const loadLocations = async () => {
-  loading.value = true
-  try {
-    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1'
-    // Load all locations in viewport without radius filter to see clustering
-    const response = await axios.get(`${apiUrl}/locations`, {
-      params: {
-        lat: 37.7749,
-        lng: -122.4194,
-        radius: 100,  // Increased radius to get more locations
-        limit: 100
-      }
-    })
-    locations.value = response.data.data
-    console.log('Loaded locations:', locations.value.length)
-  } catch (error) {
-    console.error('Error loading locations:', error)
-  } finally {
-    loading.value = false
-  }
+  // Set initial user location to SF
+  locationsStore.setUserLocation(37.7749, -122.4194)
+
+  // Fetch locations near SF
+  await locationsStore.fetchLocations()
+  console.log('Loaded locations:', locations.value.length)
 }
 
 const setUserLocation = () => {
   // Set user location to downtown SF
-  userLocation.value = {
-    lat: 37.7749,
-    lng: -122.4194
-  }
+  locationsStore.setUserLocation(37.7749, -122.4194)
   console.log('User location set:', userLocation.value)
 }
 
-const getUserLocation = () => {
-  // Use browser geolocation API
-  if ('geolocation' in navigator) {
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        userLocation.value = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude
-        }
-        console.log('Got user location:', userLocation.value)
-      },
-      (error) => {
-        console.error('Error getting location:', error)
-        // Fallback to SF
-        setUserLocation()
-      }
-    )
-  } else {
-    console.error('Geolocation not supported')
+const getUserLocation = async () => {
+  try {
+    await locationsStore.requestUserLocation()
+    console.log('Got user location:', userLocation.value)
+  } catch (error) {
+    console.error('Error getting location:', error)
+    // Fallback to SF
     setUserLocation()
   }
 }
 
 const clearUserLocation = () => {
-  userLocation.value = null
+  locationsStore.clearUserLocation()
   console.log('User location cleared')
 }
 </script>
@@ -169,21 +223,45 @@ const clearUserLocation = () => {
 <style scoped>
 .map-test-view {
   display: flex;
+  flex-direction: column;
   width: 100vw;
   height: 100vh;
 }
 
-.map-wrapper {
-  flex: 1;
-  height: 100%;
+.view-controls {
+  padding: 16px;
+  background: white;
+  border-bottom: 1px solid #E2E8F0;
+  display: none;
 }
 
-.info-panel {
+.content-area {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+.list-panel {
+  width: 40%;
+  background: #F8FAFC;
+  border-right: 1px solid #E2E8F0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.map-panel {
+  flex: 1;
+  position: relative;
+}
+
+.debug-panel {
   width: 300px;
   padding: 20px;
   background: white;
   overflow-y: auto;
   box-shadow: -2px 0 4px rgba(0, 0, 0, 0.1);
+  display: none;
 }
 
 .info-panel h2 {
@@ -245,5 +323,41 @@ const clearUserLocation = () => {
   font-size: 12px;
   color: #64748B;
   font-style: italic;
+}
+
+.loading-text {
+  color: #3B82F6;
+  font-weight: 500;
+}
+
+.error-text {
+  color: #EF4444;
+  font-size: 13px;
+}
+
+/* Mobile styles */
+@media (max-width: 768px) {
+  .view-controls {
+    display: block;
+  }
+
+  .content-area {
+    position: relative;
+    padding-bottom: 60px; /* Space for bottom tabs */
+  }
+
+  .list-panel,
+  .map-panel {
+    width: 100%;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+  }
+
+  .list-panel {
+    border-right: none;
+  }
 }
 </style>
