@@ -1,7 +1,11 @@
 import apiClient from './client'
 
-export async function getLocations(params = {}) {
-  const response = await apiClient.get('/locations', { params })
+export async function getLocations(params = {}, signal = null) {
+  const config = { params }
+  if (signal) {
+    config.signal = signal
+  }
+  const response = await apiClient.get('/locations', config)
   return response.data
 }
 

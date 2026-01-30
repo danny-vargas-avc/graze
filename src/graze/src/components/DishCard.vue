@@ -1,6 +1,7 @@
 <script setup>
 import { computed } from 'vue'
 import { RouterLink } from 'vue-router'
+import LazyImage from './LazyImage.vue'
 
 const props = defineProps({
   dish: {
@@ -23,18 +24,16 @@ const distance = computed(() => {
   >
     <div class="flex items-start gap-3">
       <!-- Restaurant logo -->
-      <div class="flex-shrink-0">
-        <img
+      <div class="logo-container">
+        <LazyImage
           v-if="dish.restaurant.logo_url"
           :src="dish.restaurant.logo_url"
-          :alt="dish.restaurant.name"
-          class="w-10 h-10 rounded-full object-cover"
+          :alt="`${dish.restaurant.name} logo`"
         />
-        <div
-          v-else
-          class="w-10 h-10 rounded-full bg-surface flex items-center justify-center text-tertiary text-lg border border-border"
-        >
-          🍽️
+        <div v-else class="logo-fallback">
+          <svg class="icon" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+          </svg>
         </div>
       </div>
 
@@ -57,3 +56,30 @@ const distance = computed(() => {
     </div>
   </RouterLink>
 </template>
+
+<style scoped>
+.logo-container {
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+
+.logo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--color-surface);
+  color: var(--color-text-tertiary);
+}
+
+.logo-fallback .icon {
+  width: 24px;
+  height: 24px;
+}
+</style>

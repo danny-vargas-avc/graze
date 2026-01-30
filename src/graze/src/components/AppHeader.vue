@@ -1,6 +1,7 @@
 <script setup>
 import { RouterLink } from 'vue-router'
 import ThemeToggle from './ThemeToggle.vue'
+import GeolocationButton from './GeolocationButton.vue'
 </script>
 
 <template>
@@ -10,6 +11,7 @@ import ThemeToggle from './ThemeToggle.vue'
         <span>Graze</span>
       </RouterLink>
       <div class="flex items-center gap-3">
+        <GeolocationButton />
         <ThemeToggle />
       </div>
     </div>

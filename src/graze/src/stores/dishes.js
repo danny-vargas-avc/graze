@@ -9,6 +9,9 @@ export const useDishesStore = defineStore('dishes', {
     loading: false,
     error: null,
 
+    // Request cancellation
+    abortController: null,
+
     // Filters
     search: '',
     caloriesMin: null,
@@ -49,6 +52,14 @@ export const useDishesStore = defineStore('dishes', {
 
   actions: {
     async fetchDishes(append = false) {
+      // Cancel any pending request
+      if (this.abortController) {
+        this.abortController.abort()
+      }
+
+      // Create new abort controller for this request
+      this.abortController = new AbortController()
+
       this.loading = true
       this.error = null
 
@@ -82,7 +93,7 @@ export const useDishesStore = defineStore('dishes', {
       }
 
       try {
-        const response = await getDishes(params)
+        const response = await getDishes(params, this.abortController.signal)
 
         if (append) {
           this.dishes = [...this.dishes, ...response.data]
@@ -95,9 +106,13 @@ export const useDishesStore = defineStore('dishes', {
         this.hasMore = response.meta.has_more
         this.offset = response.meta.offset + response.meta.limit
       } catch (error) {
-        this.error = error
+        // Don't set error state if request was aborted
+        if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
+          this.error = error
+        }
       } finally {
         this.loading = false
+        this.abortController = null
       }
     },
 

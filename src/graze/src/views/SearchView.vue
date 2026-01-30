@@ -158,11 +158,14 @@
           :center="center"
           :zoom="zoom"
           :locations="matchingLocations"
+          :dishes="dishes"
           :userLocation="userLocation"
           :highlightedRestaurantSlug="highlightedRestaurantSlug"
           @load="handleMapLoad"
           @marker-click="handleMarkerClick"
           @bounds-change="handleBoundsChange"
+          @dish-click="handleMapDishClick"
+          @view-all-dishes="handleViewAllDishes"
         />
       </div>
     </div>
@@ -397,28 +400,27 @@ const handleMarkerClick = (location) => {
 
   // Highlight the restaurant
   highlightedRestaurantSlug.value = location.restaurant.slug
+}
 
-  // Switch to list view on mobile to show the dishes
+const handleMapDishClick = (dishId) => {
+  // Navigate to dish detail page from map popup
+  router.push({ name: 'dish-detail', params: { id: dishId } })
+}
+
+const handleViewAllDishes = (restaurantSlug) => {
+  // Clear existing restaurant filter
+  dishesStore.setRestaurants([])
+
+  // Set filter to this restaurant only
+  dishesStore.setRestaurants([restaurantSlug])
+
+  // Switch to list view on mobile
   if (isMobile.value) {
     currentView.value = 'list'
   }
 
-  // Scroll to first dish from this restaurant
-  setTimeout(() => {
-    const firstDish = dishes.value.find(d => d.restaurant.slug === location.restaurant.slug)
-    if (firstDish) {
-      const dishElement = document.querySelector(`[data-dish-id="${firstDish.id}"]`)
-      if (dishElement) {
-        dishElement.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        highlightedDishId.value = firstDish.id
-
-        // Clear highlight after 2 seconds
-        setTimeout(() => {
-          highlightedDishId.value = null
-        }, 2000)
-      }
-    }
-  }, 100)
+  // Highlight the restaurant
+  highlightedRestaurantSlug.value = restaurantSlug
 }
 
 const handleBoundsChange = (data) => {
@@ -561,8 +563,8 @@ watch(currentView, (newView) => {
 
 .view-controls {
   padding: 16px;
-  background-color: rgb(var(--color-surface));
-  border-bottom: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
   display: none;
 }
 
@@ -574,8 +576,8 @@ watch(currentView, (newView) => {
 
 .list-panel {
   width: 40%;
-  background-color: rgb(var(--color-surface));
-  border-right: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface);
+  border-right: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -628,8 +630,8 @@ watch(currentView, (newView) => {
 /* Filters section */
 .filters-section {
   padding: 16px;
-  background-color: rgb(var(--color-surface-elevated));
-  border-bottom: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
   flex-shrink: 0;
 }
 
@@ -649,8 +651,8 @@ watch(currentView, (newView) => {
 /* Results header */
 .results-header {
   padding: 12px 16px;
-  background-color: rgb(var(--color-surface-elevated));
-  border-bottom: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -669,7 +671,7 @@ watch(currentView, (newView) => {
 .results-count {
   margin: 0;
   font-size: 14px;
-  color: rgb(var(--color-text-secondary));
+  color: var(--color-text-secondary);
 }
 
 .filter-button {
@@ -677,10 +679,10 @@ watch(currentView, (newView) => {
   align-items: center;
   gap: 6px;
   padding: 8px 12px;
-  background-color: rgb(var(--color-surface));
-  border: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: rgb(var(--color-text-secondary));
+  color: var(--color-text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -689,9 +691,9 @@ watch(currentView, (newView) => {
 }
 
 .filter-button:hover {
-  background-color: rgb(var(--color-surface-elevated));
-  border-color: rgb(var(--color-primary));
-  color: rgb(var(--color-primary));
+  background-color: var(--color-surface-elevated);
+  border-color: var(--color-primary);
+  color: var(--color-primary);
 }
 
 .filter-button .icon {
@@ -706,7 +708,7 @@ watch(currentView, (newView) => {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
-  background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-accent)) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   border-radius: 9px;
   color: white;
   font-size: 11px;
@@ -728,7 +730,7 @@ watch(currentView, (newView) => {
 }
 
 .dish-grid .highlighted {
-  outline: 2px solid rgb(var(--color-primary));
+  outline: 2px solid var(--color-primary);
   outline-offset: 2px;
   border-radius: 8px;
 }
@@ -740,6 +742,30 @@ watch(currentView, (newView) => {
 
 .mobile-only {
   display: none;
+}
+
+/* Tablet styles */
+@media (min-width: 769px) and (max-width: 1024px) {
+  .list-panel {
+    width: 50%;
+  }
+
+  /* Larger touch targets for tablet */
+  .filter-button {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+
+  /* Better spacing for dish grid */
+  .dish-grid {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  /* Adjust results header for tablet */
+  .results-header {
+    padding: 14px 16px;
+  }
 }
 
 /* Mobile styles */

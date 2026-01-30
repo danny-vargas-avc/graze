@@ -8,6 +8,9 @@ export const useLocationsStore = defineStore('locations', {
     loading: false,
     error: null,
 
+    // Request cancellation
+    abortController: null,
+
     // User location
     userLocation: null, // { lat, lng }
 
@@ -33,6 +36,14 @@ export const useLocationsStore = defineStore('locations', {
 
   actions: {
     async fetchLocations(options = {}) {
+      // Cancel any pending request
+      if (this.abortController) {
+        this.abortController.abort()
+      }
+
+      // Create new abort controller for this request
+      this.abortController = new AbortController()
+
       this.loading = true
       this.error = null
 
@@ -58,14 +69,18 @@ export const useLocationsStore = defineStore('locations', {
       }
 
       try {
-        const response = await getLocations(params)
+        const response = await getLocations(params, this.abortController.signal)
         this.locations = response.data
         this.total = response.meta.total
       } catch (error) {
-        this.error = error
-        this.locations = []
+        // Don't set error state if request was aborted
+        if (error.name !== 'AbortError' && error.name !== 'CanceledError') {
+          this.error = error
+          this.locations = []
+        }
       } finally {
         this.loading = false
+        this.abortController = null
       }
     },
 

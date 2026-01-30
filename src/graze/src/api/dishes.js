@@ -1,7 +1,11 @@
 import apiClient from './client'
 
-export async function getDishes(params = {}) {
-  const response = await apiClient.get('/dishes', { params })
+export async function getDishes(params = {}, signal = null) {
+  const config = { params }
+  if (signal) {
+    config.signal = signal
+  }
+  const response = await apiClient.get('/dishes', config)
   return response.data
 }
 

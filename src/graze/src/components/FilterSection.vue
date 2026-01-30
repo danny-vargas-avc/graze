@@ -54,7 +54,7 @@ function select(option) {
   display: block;
   font-size: 14px;
   font-weight: 500;
-  color: rgb(var(--color-text-secondary));
+  color: var(--color-text-secondary);
   margin-bottom: 8px;
 }
 </style>

@@ -2,6 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDish } from '../api/dishes'
+import LoadingSpinner from '../components/LoadingSpinner.vue'
+import ErrorState from '../components/ErrorState.vue'
+import LazyImage from '../components/LazyImage.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +26,15 @@ onMounted(async () => {
 function goBack() {
   router.back()
 }
+
+function retry() {
+  loading.value = true
+  error.value = null
+  getDish(route.params.id)
+    .then(data => { dish.value = data })
+    .catch(err => { error.value = err })
+    .finally(() => { loading.value = false })
+}
 </script>
 
 <template>
@@ -39,26 +51,22 @@ function goBack() {
     </button>
 
     <!-- Loading -->
-    <div v-if="loading" class="text-center py-12">
-      <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600 mx-auto"></div>
-    </div>
+    <LoadingSpinner v-if="loading" center size="lg" text="Loading dish details..." />
 
     <!-- Error -->
-    <div v-else-if="error" class="text-center py-12">
-      <p class="text-red-600">{{ error.message }}</p>
-    </div>
+    <ErrorState v-else-if="error" :error="error" @retry="retry" />
 
     <!-- Content -->
     <div v-else-if="dish" class="bg-white rounded-lg border border-gray-200 overflow-hidden">
       <!-- Header -->
       <div class="p-6 border-b border-gray-200">
         <div class="flex items-start gap-4">
-          <img
-            v-if="dish.restaurant.logo_url"
-            :src="dish.restaurant.logo_url"
-            :alt="dish.restaurant.name"
-            class="w-16 h-16 rounded-full object-cover"
-          />
+          <div v-if="dish.restaurant.logo_url" class="restaurant-logo">
+            <LazyImage
+              :src="dish.restaurant.logo_url"
+              :alt="dish.restaurant.name"
+            />
+          </div>
           <div>
             <p class="text-gray-500">{{ dish.restaurant.name }}</p>
             <h1 class="text-2xl font-bold text-gray-900">{{ dish.name }}</h1>
@@ -149,3 +157,15 @@ function goBack() {
     </div>
   </div>
 </template>
+
+<style scoped>
+.restaurant-logo {
+  width: 64px;
+  height: 64px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  overflow: hidden;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border);
+}
+</style>

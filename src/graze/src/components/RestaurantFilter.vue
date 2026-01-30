@@ -2,6 +2,8 @@
 import { onMounted } from 'vue'
 import { useRestaurantsStore } from '../stores/restaurants'
 import { storeToRefs } from 'pinia'
+import LoadingSpinner from './LoadingSpinner.vue'
+import LazyImage from './LazyImage.vue'
 
 const props = defineProps({
   selected: {
@@ -26,7 +28,7 @@ function isSelected(slug) {
 
 <template>
   <div>
-    <div v-if="loading" class="loading-text">Loading...</div>
+    <LoadingSpinner v-if="loading" size="sm" text="Loading restaurants..." />
 
     <div v-else class="flex flex-wrap gap-2">
       <button
@@ -38,12 +40,12 @@ function isSelected(slug) {
           isSelected(restaurant.slug) ? 'active' : ''
         ]"
       >
-        <img
-          v-if="restaurant.logo_url"
-          :src="restaurant.logo_url"
-          :alt="restaurant.name"
-          class="restaurant-logo"
-        />
+        <div v-if="restaurant.logo_url" class="restaurant-logo">
+          <LazyImage
+            :src="restaurant.logo_url"
+            :alt="restaurant.name"
+          />
+        </div>
         <span>{{ restaurant.name }}</span>
       </button>
     </div>
@@ -51,20 +53,15 @@ function isSelected(slug) {
 </template>
 
 <style scoped>
-.loading-text {
-  font-size: 14px;
-  color: rgb(var(--color-text-secondary));
-}
-
 .restaurant-chip {
   display: flex;
   align-items: center;
   gap: 6px;
   padding: 8px 14px;
-  background-color: rgb(var(--color-surface-elevated));
-  border: 1px solid rgb(var(--color-border));
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: rgb(var(--color-text-secondary));
+  color: var(--color-text-secondary);
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
@@ -72,13 +69,13 @@ function isSelected(slug) {
 }
 
 .restaurant-chip:hover {
-  background-color: rgb(var(--color-surface));
-  border-color: rgb(var(--color-primary));
-  color: rgb(var(--color-text-primary));
+  background-color: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
 }
 
 .restaurant-chip.active {
-  background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-accent)) 100%);
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   border-color: transparent;
   color: white;
 }
@@ -87,6 +84,7 @@ function isSelected(slug) {
   width: 16px;
   height: 16px;
   border-radius: 50%;
-  object-fit: cover;
+  overflow: hidden;
+  flex-shrink: 0;
 }
 </style>

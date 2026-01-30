@@ -27,7 +27,7 @@ defineProps({
 
 <style scoped>
 .filter-accordion {
-  border-bottom: 1px solid rgb(var(--color-border));
+  border-bottom: 1px solid var(--color-border);
 }
 
 .accordion-header {
@@ -46,19 +46,19 @@ defineProps({
 }
 
 .accordion-header:hover {
-  color: rgb(var(--color-primary));
+  color: var(--color-primary);
 }
 
 .accordion-title {
   font-size: 15px;
   font-weight: 600;
-  color: rgb(var(--color-text-primary));
+  color: var(--color-text-primary);
 }
 
 .accordion-icon {
   width: 20px;
   height: 20px;
-  color: rgb(var(--color-text-tertiary));
+  color: var(--color-text-tertiary);
   transition: transform 200ms ease;
   flex-shrink: 0;
 }
