@@ -130,8 +130,8 @@ const clearLocation = () => {
 <style scoped>
 .location-filters {
   padding: 16px;
-  background: white;
-  border-bottom: 1px solid #E2E8F0;
+  background: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .filter-section {
@@ -146,7 +146,7 @@ const clearLocation = () => {
   display: block;
   font-size: 14px;
   font-weight: 600;
-  color: #1E293B;
+  color: var(--color-text-primary);
   margin-bottom: 8px;
 }
 
@@ -158,25 +158,26 @@ const clearLocation = () => {
 
 .radius-button {
   padding: 8px 16px;
-  background: #F1F5F9;
-  border: 2px solid transparent;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   font-size: 14px;
   font-weight: 500;
-  color: #64748B;
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .radius-button:hover {
-  background: #E2E8F0;
-  color: #475569;
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
 }
 
 .radius-button.active {
-  background: #EFF6FF;
-  border-color: #3B82F6;
-  color: #3B82F6;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  border-color: transparent;
+  color: white;
 }
 
 .restaurant-chips {
@@ -187,25 +188,26 @@ const clearLocation = () => {
 
 .restaurant-chip {
   padding: 6px 12px;
-  background: #F1F5F9;
-  border: 2px solid transparent;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 16px;
   font-size: 13px;
   font-weight: 500;
-  color: #64748B;
+  color: var(--color-text-secondary);
   cursor: pointer;
   transition: all 0.2s;
 }
 
 .restaurant-chip:hover {
-  background: #E2E8F0;
-  color: #475569;
+  background: var(--color-surface);
+  border-color: var(--color-primary);
+  color: var(--color-text-primary);
 }
 
 .restaurant-chip.active {
-  background: #EFF6FF;
-  border-color: #3B82F6;
-  color: #3B82F6;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  border-color: transparent;
+  color: white;
 }
 
 .clear-button {
@@ -213,7 +215,7 @@ const clearLocation = () => {
   padding: 6px 12px;
   background: transparent;
   border: none;
-  color: #64748B;
+  color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -221,7 +223,7 @@ const clearLocation = () => {
 }
 
 .clear-button:hover {
-  color: #EF4444;
+  color: var(--color-error);
 }
 
 .location-info {
@@ -229,13 +231,14 @@ const clearLocation = () => {
   align-items: center;
   justify-content: space-between;
   padding: 8px 12px;
-  background: #F1F5F9;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
 }
 
 .location-text {
   font-size: 13px;
-  color: #475569;
+  color: var(--color-text-primary);
   font-family: monospace;
 }
 
@@ -243,7 +246,7 @@ const clearLocation = () => {
   padding: 4px 8px;
   background: transparent;
   border: none;
-  color: #64748B;
+  color: var(--color-text-secondary);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -251,23 +254,23 @@ const clearLocation = () => {
 }
 
 .text-button:hover {
-  color: #EF4444;
+  color: var(--color-error);
 }
 
 .action-button {
   width: 100%;
   padding: 10px 16px;
-  background: #3B82F6;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   border: none;
   border-radius: 6px;
   color: white;
   font-size: 14px;
   font-weight: 500;
   cursor: pointer;
-  transition: background 0.2s;
+  transition: opacity 0.2s;
 }
 
 .action-button:hover {
-  background: #2563EB;
+  opacity: 0.9;
 }
 </style>

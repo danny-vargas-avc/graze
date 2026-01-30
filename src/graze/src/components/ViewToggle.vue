@@ -95,13 +95,11 @@ const selectView = (view) => {
 }
 
 .toggle-button:hover {
-  background-color: var(--color-surface);
   color: var(--color-text-primary);
 }
 
 .toggle-button.active {
   background-color: var(--color-surface);
-  color: var(--color-primary);
   /* box-shadow: var(--shadow); */
 }
 
@@ -113,7 +111,6 @@ const selectView = (view) => {
 
 .view-toggle:not(.mobile) .toggle-button.active {
   background: white;
-  color: var(--color-primary);
 }
 
 /* Mobile active state - more prominent */
@@ -125,8 +122,8 @@ const selectView = (view) => {
 }
 
 .mobile .toggle-button.active {
-  color: var(--color-primary);
   background: transparent;
+  color: white;
 }
 
 .mobile .toggle-button.active::after {
@@ -136,7 +133,7 @@ const selectView = (view) => {
   left: 20%;
   right: 20%;
   height: 3px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  background: white;
   border-radius: 3px 3px 0 0;
 }
 

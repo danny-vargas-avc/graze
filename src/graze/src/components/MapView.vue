@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch } from 'vue'
+import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import Supercluster from 'supercluster'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -53,10 +53,23 @@ const emit = defineEmits(['move', 'load', 'marker-click', 'bounds-change', 'dish
 
 const mapContainer = ref(null)
 const isLoading = ref(true)
+const isDarkMode = ref(false)
 let map = null
 let clusterIndex = null
 let boundsChangeTimeout = null
 let currentPopup = null
+
+// Check for dark mode
+const updateDarkMode = () => {
+  isDarkMode.value = document.documentElement.classList.contains('dark')
+}
+
+// Get map style based on theme
+const getMapStyle = () => {
+  return isDarkMode.value
+    ? 'mapbox://styles/mapbox/dark-v11'
+    : 'mapbox://styles/mapbox/streets-v12'
+}
 
 // Restaurant color mapping
 const restaurantColors = {
@@ -458,16 +471,38 @@ onMounted(() => {
   // Initialize cluster index
   initCluster()
 
+  // Check initial dark mode state
+  updateDarkMode()
+
   // Set Mapbox access token
   mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
   // Initialize map
   map = new mapboxgl.Map({
     container: mapContainer.value,
-    style: 'mapbox://styles/mapbox/streets-v12',
+    style: getMapStyle(),
     center: props.center,
     zoom: props.zoom
   })
+
+  // Watch for theme changes
+  const observer = new MutationObserver(() => {
+    const newIsDark = document.documentElement.classList.contains('dark')
+    if (newIsDark !== isDarkMode.value) {
+      isDarkMode.value = newIsDark
+      if (map) {
+        map.setStyle(getMapStyle())
+      }
+    }
+  })
+
+  observer.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['class']
+  })
+
+  // Store observer for cleanup
+  map._themeObserver = observer
 
   // Add map controls
   map.addControl(new mapboxgl.NavigationControl(), 'top-right')
@@ -488,6 +523,13 @@ onMounted(() => {
     updateUserLocation()
     isLoading.value = false
     emit('load', map)
+  })
+
+  // Handle style changes (when theme changes)
+  map.on('style.load', () => {
+    // Re-add markers and user location after style loads
+    updateMarkers()
+    updateUserLocation()
   })
 
   // Handle map movement (pan/zoom) - update clusters
@@ -552,6 +594,10 @@ onUnmounted(() => {
   }
 
   if (map) {
+    // Disconnect theme observer
+    if (map._themeObserver) {
+      map._themeObserver.disconnect()
+    }
     // Remove resize listener
     if (map._handleResize) {
       window.removeEventListener('resize', map._handleResize)

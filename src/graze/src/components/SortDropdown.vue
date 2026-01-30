@@ -63,25 +63,25 @@ if (typeof window !== 'undefined') {
   <div class="relative sort-dropdown">
     <button
       @click.stop="isOpen = !isOpen"
-      class="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50"
+      class="sort-button"
     >
       <span>{{ selectedLabel }}</span>
-      <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <svg class="icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7" />
       </svg>
     </button>
 
     <div
       v-if="isOpen"
-      class="absolute right-0 mt-1 w-48 bg-white border border-gray-200 rounded-lg shadow-lg z-10"
+      class="dropdown-menu"
     >
       <button
         v-for="option in options"
         :key="option.value"
         @click="select(option.value)"
         :class="[
-          'block w-full text-left px-4 py-2 text-sm hover:bg-gray-50',
-          option.value === modelValue ? 'text-green-600 font-medium' : 'text-gray-700'
+          'dropdown-item',
+          { 'active': option.value === modelValue }
         ]"
       >
         {{ option.label }}
@@ -89,3 +89,66 @@ if (typeof window !== 'undefined') {
     </div>
   </div>
 </template>
+
+<style scoped>
+.sort-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.sort-button:hover {
+  background-color: var(--color-surface);
+  border-color: var(--color-primary);
+}
+
+.icon {
+  width: 16px;
+  height: 16px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  right: 0;
+  margin-top: 4px;
+  width: 200px;
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-lg);
+  z-index: 10;
+  overflow: hidden;
+}
+
+.dropdown-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 16px;
+  font-size: 14px;
+  color: var(--color-text-primary);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.dropdown-item:hover {
+  background-color: var(--color-surface);
+}
+
+.dropdown-item.active {
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
+  color: white;
+  font-weight: 600;
+}
+</style>

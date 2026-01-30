@@ -23,6 +23,9 @@
     --color-accent-hover: #0060a8;
     --color-accent-light: #cce4f6;
 
+    --color-clickable: #a0774a;
+    --color-clickable-hover: #8b6f47;
+
     --color-success: #46d160;
     --color-warning: #f59e0b;
     --color-error: #ea0027;
@@ -52,6 +55,9 @@
     --color-accent: #764f00;
     --color-accent-hover: #1c90db;
     --color-accent-light: #002a45;
+
+    --color-clickable: #c9a777;
+    --color-clickable-hover: #b8956a;
 
     --color-success: #46d160;
     --color-warning: #fbbf24;
@@ -149,6 +155,14 @@
     color: var(--color-text-tertiary);
   }
 
+  .text-clickable {
+    color: var(--color-clickable);
+  }
+
+  .text-clickable-hover:hover {
+    color: var(--color-clickable-hover);
+  }
+
   .border-border {
     border-color: var(--color-border);
   }
@@ -170,11 +184,13 @@
     background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   }
 
+  /* Clickable text/icons - solid brown */
   .text-gradient-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+    color: var(--color-clickable);
+  }
+
+  .text-gradient-primary:hover {
+    color: var(--color-clickable-hover);
   }
 }
 

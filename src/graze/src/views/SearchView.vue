@@ -296,7 +296,7 @@ const mapViewRef = ref(null)
 
 // Map state
 const center = ref([-74.0060, 40.7128]) // New York City
-const zoom = ref(9)
+const zoom = ref(12)
 const mapLoaded = ref(false)
 
 // Filter options
