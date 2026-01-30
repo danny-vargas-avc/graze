@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { getDishes } from '../api/dishes'
+import { useLocationsStore } from './locations'
 
 export const useDishesStore = defineStore('dishes', {
   state: () => ({
@@ -20,6 +21,10 @@ export const useDishesStore = defineStore('dishes', {
     selectedRestaurants: [],
     category: null,
 
+    // Location
+    userLocation: null, // { lat, lng }
+    radiusMiles: null, // for "nearby" filter
+
     // Sorting
     sort: 'protein_ratio_desc',
 
@@ -37,6 +42,7 @@ export const useDishesStore = defineStore('dishes', {
       if (state.carbsMax) count++
       if (state.fatMin || state.fatMax) count++
       if (state.selectedRestaurants.length > 0) count++
+      if (state.radiusMiles) count++
       return count
     },
   },
@@ -64,6 +70,16 @@ export const useDishesStore = defineStore('dishes', {
         params.restaurants = this.selectedRestaurants.join(',')
       }
       if (this.category) params.category = this.category
+
+      // Include user location if available (for future distance-based features)
+      if (this.userLocation) {
+        params.lat = this.userLocation.lat
+        params.lng = this.userLocation.lng
+      }
+      // Include radius filter if set
+      if (this.radiusMiles) {
+        params.radius = this.radiusMiles
+      }
 
       try {
         const response = await getDishes(params)
@@ -139,6 +155,22 @@ export const useDishesStore = defineStore('dishes', {
       this.fetchDishes()
     },
 
+    // Set user location from locations store
+    setUserLocation(lat, lng) {
+      if (lat && lng) {
+        this.userLocation = { lat, lng }
+      } else {
+        this.userLocation = null
+      }
+      this.fetchDishes()
+    },
+
+    // Set radius filter for "nearby" searches
+    setRadius(miles) {
+      this.radiusMiles = miles
+      this.fetchDishes()
+    },
+
     clearFilters() {
       this.search = ''
       this.caloriesMin = null
@@ -150,6 +182,7 @@ export const useDishesStore = defineStore('dishes', {
       this.fatMax = null
       this.selectedRestaurants = []
       this.category = null
+      this.radiusMiles = null
       this.sort = 'protein_ratio_desc'
       this.fetchDishes()
     },
@@ -170,6 +203,13 @@ export const useDishesStore = defineStore('dishes', {
           break
         case 'low-carb':
           this.carbsMax = 30
+          break
+        case 'nearby-5mi':
+          // Only apply if user location is set
+          if (this.userLocation) {
+            this.radiusMiles = 5
+            this.sort = 'distance_asc'
+          }
           break
       }
 

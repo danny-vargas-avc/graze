@@ -6,26 +6,39 @@ const props = defineProps({
     type: String,
     default: 'protein_ratio_desc',
   },
+  showDistance: {
+    type: Boolean,
+    default: false,
+  },
 })
 
 const emit = defineEmits(['update:modelValue'])
 
 const isOpen = ref(false)
 
-const options = [
-  { value: 'protein_ratio_desc', label: 'Best Protein/Cal' },
-  { value: 'protein_desc', label: 'Highest Protein' },
-  { value: 'protein_asc', label: 'Lowest Protein' },
-  { value: 'calories_asc', label: 'Lowest Calories' },
-  { value: 'calories_desc', label: 'Highest Calories' },
-  { value: 'carbs_asc', label: 'Lowest Carbs' },
-  { value: 'fat_desc', label: 'Highest Fat' },
-  { value: 'fat_asc', label: 'Lowest Fat' },
-  { value: 'alpha_asc', label: 'A-Z' },
-]
+const options = computed(() => {
+  const baseOptions = [
+    { value: 'protein_ratio_desc', label: 'Best Protein/Cal' },
+    { value: 'protein_desc', label: 'Highest Protein' },
+    { value: 'protein_asc', label: 'Lowest Protein' },
+    { value: 'calories_asc', label: 'Lowest Calories' },
+    { value: 'calories_desc', label: 'Highest Calories' },
+    { value: 'carbs_asc', label: 'Lowest Carbs' },
+    { value: 'fat_desc', label: 'Highest Fat' },
+    { value: 'fat_asc', label: 'Lowest Fat' },
+    { value: 'alpha_asc', label: 'A-Z' },
+  ]
+
+  // Add distance sort option if user location is available
+  if (props.showDistance) {
+    baseOptions.unshift({ value: 'distance_asc', label: 'Nearest' })
+  }
+
+  return baseOptions
+})
 
 const selectedLabel = computed(() => {
-  const option = options.find(o => o.value === props.modelValue)
+  const option = options.value.find(o => o.value === props.modelValue)
   return option ? option.label : 'Sort'
 })
 

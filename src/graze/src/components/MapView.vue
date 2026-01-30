@@ -1,5 +1,19 @@
 <template>
-  <div ref="mapContainer" class="map-container"></div>
+  <div class="map-wrapper">
+    <!-- Loading spinner -->
+    <Transition name="fade">
+      <div v-if="isLoading" class="map-loading">
+        <div class="spinner-container">
+          <svg class="spinner" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+          <p class="loading-text">Loading map...</p>
+        </div>
+      </div>
+    </Transition>
+    <div ref="mapContainer" class="map-container"></div>
+  </div>
 </template>
 
 <script setup>
@@ -11,7 +25,7 @@ import 'mapbox-gl/dist/mapbox-gl.css'
 const props = defineProps({
   center: {
     type: Array,
-    default: () => [-122.4194, 37.7749] // San Francisco [lng, lat]
+    default: () => [-74.0060, 40.7128] // New York City [lng, lat]
   },
   zoom: {
     type: Number,
@@ -24,12 +38,17 @@ const props = defineProps({
   userLocation: {
     type: Object,
     default: null // { lat, lng }
+  },
+  highlightedRestaurantSlug: {
+    type: String,
+    default: null
   }
 })
 
 const emit = defineEmits(['move', 'load', 'marker-click', 'bounds-change'])
 
 const mapContainer = ref(null)
+const isLoading = ref(true)
 let map = null
 let clusterIndex = null
 let boundsChangeTimeout = null
@@ -256,6 +275,15 @@ const updateMarkers = () => {
       }
     })
 
+    // Add hover cursor
+    map.on('mouseenter', unclusteredLayerId, () => {
+      map.getCanvas().style.cursor = 'pointer'
+    })
+
+    map.on('mouseleave', unclusteredLayerId, () => {
+      map.getCanvas().style.cursor = ''
+    })
+
     // Handle cluster click - zoom to cluster bounds
     map.on('click', clusterLayerId, (e) => {
       const features = map.queryRenderedFeatures(e.point, {
@@ -338,6 +366,7 @@ onMounted(() => {
   map.on('load', () => {
     updateMarkers()
     updateUserLocation()
+    isLoading.value = false
     emit('load', map)
   })
 
@@ -440,6 +469,39 @@ watch(() => props.locations, () => {
   }
 }, { deep: true })
 
+// Watch for highlightedRestaurantSlug changes
+watch(() => props.highlightedRestaurantSlug, (newSlug) => {
+  if (map && map.isStyleLoaded() && map.getLayer('unclustered-points')) {
+    // Update marker styling based on highlighted restaurant
+    if (newSlug) {
+      // Make matching markers larger and more prominent
+      map.setPaintProperty('unclustered-points', 'circle-radius', [
+        'case',
+        ['==', ['get', 'restaurantSlug'], newSlug],
+        12,  // Larger radius for highlighted
+        8    // Normal radius
+      ])
+      map.setPaintProperty('unclustered-points', 'circle-stroke-width', [
+        'case',
+        ['==', ['get', 'restaurantSlug'], newSlug],
+        3,   // Thicker stroke for highlighted
+        2    // Normal stroke
+      ])
+      map.setPaintProperty('unclustered-points', 'circle-opacity', [
+        'case',
+        ['==', ['get', 'restaurantSlug'], newSlug],
+        1,     // Full opacity for highlighted
+        0.4    // Dimmed for non-highlighted
+      ])
+    } else {
+      // Reset to normal styling
+      map.setPaintProperty('unclustered-points', 'circle-radius', 8)
+      map.setPaintProperty('unclustered-points', 'circle-stroke-width', 2)
+      map.setPaintProperty('unclustered-points', 'circle-opacity', 0.9)
+    }
+  }
+})
+
 // Watch for userLocation prop changes
 watch(() => props.userLocation, (newLocation) => {
   if (map && map.isStyleLoaded() && newLocation) {
@@ -447,15 +509,79 @@ watch(() => props.userLocation, (newLocation) => {
   }
 }, { deep: true })
 
-// Expose map instance for parent components
+// Expose map instance and loading state for parent components
 defineExpose({
-  getMap: () => map
+  getMap: () => map,
+  setLoading: (loading) => {
+    isLoading.value = loading
+  }
 })
 </script>
 
 <style scoped>
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
 .map-container {
   width: 100%;
   height: 100%;
+}
+
+.map-loading {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(var(--color-background), 0.9);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+}
+
+.spinner-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  width: 48px;
+  height: 48px;
+  color: rgb(var(--color-primary));
+  animation: spin 1s linear infinite;
+}
+
+.loading-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--color-text-secondary));
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Fade transition */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 200ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
 }
 </style>

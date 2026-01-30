@@ -17,10 +17,10 @@ const emit = defineEmits(['click'])
   <button
     @click="emit('click')"
     :class="[
-      'px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
+      'px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200',
       active
-        ? 'bg-green-600 text-white'
-        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+        ? 'gradient-primary text-white shadow-custom'
+        : 'bg-surface-elevated text-secondary hover:bg-surface hover:text-primary border border-border hover:border-primary'
     ]"
   >
     {{ label }}

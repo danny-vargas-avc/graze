@@ -6,6 +6,16 @@
 
     <div class="content-area">
       <div v-show="currentView === 'list' || !isMobile" class="list-panel">
+        <LocationFilters
+          v-model:model-radius="radius"
+          v-model:selected-restaurants="selectedRestaurants"
+          :restaurants="restaurants"
+          :user-location="userLocation"
+          @radius-change="handleRadiusChange"
+          @restaurant-change="handleRestaurantChange"
+          @request-location="handleRequestLocation"
+          @clear-location="handleClearLocation"
+        />
         <LocationList
           :locations="locations"
           :total="locationsStore.total"
@@ -91,16 +101,21 @@ import { storeToRefs } from 'pinia'
 import MapView from '../components/MapView.vue'
 import ViewToggle from '../components/ViewToggle.vue'
 import LocationList from '../components/LocationList.vue'
+import LocationFilters from '../components/LocationFilters.vue'
 import { useLocationsStore } from '../stores/locations'
+import { useRestaurantsStore } from '../stores/restaurants'
 
 const locationsStore = useLocationsStore()
-const { locations, userLocation, loading } = storeToRefs(locationsStore)
+const { locations, userLocation, loading, radius, selectedRestaurants } = storeToRefs(locationsStore)
+
+const restaurantsStore = useRestaurantsStore()
+const { restaurants } = storeToRefs(restaurantsStore)
 
 const currentView = ref('map')
 const isMobile = ref(window.innerWidth < 768)
 const highlightedLocationId = ref(null)
 
-const center = ref([-122.4194, 37.7749]) // San Francisco
+const center = ref([-74.0060, 40.7128]) // New York City
 const zoom = ref(9)  // Zoomed out to see clustering
 const mapLoaded = ref(false)
 const selectedMarker = ref(null)
@@ -118,6 +133,8 @@ const lastBoundsChange = ref(null)
 const handleMapLoad = (map) => {
   mapLoaded.value = true
   console.log('Map loaded:', map)
+  // Fetch restaurants for filter
+  restaurantsStore.fetchRestaurants()
   // Auto-load locations on map load
   loadLocations()
 }
@@ -189,17 +206,17 @@ const handleBoundsChange = (data) => {
 }
 
 const loadLocations = async () => {
-  // Set initial user location to SF
-  locationsStore.setUserLocation(37.7749, -122.4194)
+  // Set initial user location to NYC
+  locationsStore.setUserLocation(40.7128, -74.0060)
 
-  // Fetch locations near SF
+  // Fetch locations near NYC
   await locationsStore.fetchLocations()
   console.log('Loaded locations:', locations.value.length)
 }
 
 const setUserLocation = () => {
-  // Set user location to downtown SF
-  locationsStore.setUserLocation(37.7749, -122.4194)
+  // Set user location to downtown NYC
+  locationsStore.setUserLocation(40.7128, -74.0060)
   console.log('User location set:', userLocation.value)
 }
 
@@ -217,6 +234,32 @@ const getUserLocation = async () => {
 const clearUserLocation = () => {
   locationsStore.clearUserLocation()
   console.log('User location cleared')
+}
+
+const handleRadiusChange = (newRadius) => {
+  console.log('Radius changed to:', newRadius)
+  locationsStore.setRadius(newRadius)
+}
+
+const handleRestaurantChange = (restaurants) => {
+  console.log('Selected restaurants:', restaurants)
+  locationsStore.setRestaurants(restaurants)
+}
+
+const handleRequestLocation = async () => {
+  try {
+    await locationsStore.requestUserLocation()
+    // Fetch locations near user
+    await locationsStore.fetchLocations()
+    console.log('User location set and locations fetched')
+  } catch (error) {
+    console.error('Failed to get user location:', error)
+  }
+}
+
+const handleClearLocation = () => {
+  locationsStore.clearUserLocation()
+  console.log('User location cleared from filter')
 }
 </script>
 
@@ -248,6 +291,15 @@ const clearUserLocation = () => {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.list-panel > * {
+  flex-shrink: 0;
+}
+
+.list-panel > :last-child {
+  flex: 1;
+  min-height: 0;
 }
 
 .map-panel {

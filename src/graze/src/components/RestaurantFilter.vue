@@ -26,9 +26,7 @@ function isSelected(slug) {
 
 <template>
   <div>
-    <label class="block text-sm font-medium text-gray-700 mb-2">Restaurants</label>
-
-    <div v-if="loading" class="text-sm text-gray-500">Loading...</div>
+    <div v-if="loading" class="loading-text">Loading...</div>
 
     <div v-else class="flex flex-wrap gap-2">
       <button
@@ -36,20 +34,59 @@ function isSelected(slug) {
         :key="restaurant.slug"
         @click="emit('toggle', restaurant.slug)"
         :class="[
-          'flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-colors',
-          isSelected(restaurant.slug)
-            ? 'bg-green-600 text-white'
-            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+          'restaurant-chip',
+          isSelected(restaurant.slug) ? 'active' : ''
         ]"
       >
         <img
           v-if="restaurant.logo_url"
           :src="restaurant.logo_url"
           :alt="restaurant.name"
-          class="w-4 h-4 rounded-full object-cover"
+          class="restaurant-logo"
         />
         <span>{{ restaurant.name }}</span>
       </button>
     </div>
   </div>
 </template>
+
+<style scoped>
+.loading-text {
+  font-size: 14px;
+  color: rgb(var(--color-text-secondary));
+}
+
+.restaurant-chip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  background-color: rgb(var(--color-surface-elevated));
+  border: 1px solid rgb(var(--color-border));
+  border-radius: 8px;
+  color: rgb(var(--color-text-secondary));
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 200ms ease;
+}
+
+.restaurant-chip:hover {
+  background-color: rgb(var(--color-surface));
+  border-color: rgb(var(--color-primary));
+  color: rgb(var(--color-text-primary));
+}
+
+.restaurant-chip.active {
+  background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-accent)) 100%);
+  border-color: transparent;
+  color: white;
+}
+
+.restaurant-logo {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+</style>

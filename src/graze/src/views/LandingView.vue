@@ -16,7 +16,6 @@ let animationFrame = null
 
 // Pattern presets (f, k values that create interesting patterns)
 const PRESETS = [
-  { name: 'mitosis', f: 0.028, k: 0.062, seeds: 600 },
   { name: 'coral', f: 0.0545, k: 0.062, seeds: 20 },
   { name: 'maze', f: 0.029, k: 0.057, seeds: 20 },
   { name: 'bubbles', f: 0.012, k: 0.050, seeds: 25 },

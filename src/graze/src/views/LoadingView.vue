@@ -25,7 +25,6 @@ const dataReady = ref(false)
 
 // Presets/palettes (same as landing, used as fallback)
 const PRESETS = [
-  { name: 'mitosis', f: 0.028, k: 0.062, seeds: 600 },
   { name: 'coral', f: 0.0545, k: 0.062, seeds: 20 },
   { name: 'maze', f: 0.029, k: 0.057, seeds: 20 },
   { name: 'bubbles', f: 0.012, k: 0.050, seeds: 25 },
@@ -34,10 +33,10 @@ const PRESETS = [
 ]
 
 const PALETTES = [
-  { bg: [0.04, 0.04, 0.04], fg: [0.76, 0.55, 0.38] },
-  { bg: [0.04, 0.04, 0.04], fg: [0.55, 0.65, 0.45] },
-  { bg: [0.04, 0.04, 0.04], fg: [0.85, 0.70, 0.50] },
-  { bg: [0.04, 0.04, 0.04], fg: [0.45, 0.55, 0.50] },
+  { bg: [0.12, 0.12, 0.12], fg: [0.90, 0.70, 0.55] },
+  { bg: [0.12, 0.12, 0.12], fg: [0.70, 0.80, 0.60] },
+  { bg: [0.12, 0.12, 0.12], fg: [0.95, 0.85, 0.65] },
+  { bg: [0.12, 0.12, 0.12], fg: [0.60, 0.70, 0.65] },
 ]
 
 const nutritionTerms = [
@@ -224,15 +223,15 @@ const breakdownShaderSource = `
     float lightFaded = (gxFaded + gyFaded) * 2.0;
 
     vec3 base = mix(u_bgColor, u_fgColor, bFaded);
-    vec3 highlight = base + vec3(0.12) * lightFaded;
-    vec3 color = highlight + edgeFaded * vec3(0.08);
+    vec3 highlight = base + vec3(0.20) * lightFaded;
+    vec3 color = highlight + edgeFaded * vec3(0.15);
 
     // --- Crack mask ---
     float crackWidth = u_breakdownProgress * 0.15;
     float crack = smoothstep(crackWidth, crackWidth + 0.02, edgeFactor);
 
     // Gap color (slightly lighter bg for depth)
-    vec3 gapColor = u_bgColor * 0.1;
+    vec3 gapColor = u_bgColor * 0.4;
     vec3 fragColor = mix(gapColor, color, crack);
 
     // Fade toward search page bg (#f9fafb)
@@ -529,7 +528,7 @@ function buildTimeline() {
     if (!el) return
     const startX = (Math.random() - 0.5) * 400
     const startY = (Math.random() - 0.5) * 400
-    const targetOpacity = 0.5 + Math.random() * 0.6
+    const targetOpacity = 0.8 + Math.random() * 0.2
 
     gsap.set(el, { opacity: 0, x: startX, y: startY, scale: 0.5 + Math.random() })
 
@@ -588,7 +587,7 @@ onMounted(() => {
 
   // Set text color from palette
   const fg = currentPalette.fg
-  fgColorCSS.value = `rgba(${Math.round(fg[0]*255)}, ${Math.round(fg[1]*255)}, ${Math.round(fg[2]*255)}, 0.6)`
+  fgColorCSS.value = `rgba(${Math.round(fg[0]*255)}, ${Math.round(fg[1]*255)}, ${Math.round(fg[2]*255)}, 0.9)`
 
   // Initialize Voronoi seeds
   for (let i = 0; i < 16; i++) {
@@ -647,7 +646,7 @@ onUnmounted(() => {
 .loading-page {
   position: fixed;
   inset: 0;
-  background: #0a0a0a;
+  background: #1a1a1a;
   overflow: hidden;
 }
 
@@ -670,7 +669,7 @@ onUnmounted(() => {
 .nutrition-term {
   position: absolute;
   font-size: 0.875rem;
-  font-weight: 300;
+  font-weight: 400;
   letter-spacing: 0.15em;
   opacity: 0;
   white-space: nowrap;

@@ -23,12 +23,12 @@ const isFullscreen = computed(() => route.name === 'landing' || route.name === '
     <router-view v-if="isFullscreen" />
 
     <!-- Other pages get header/footer wrapper -->
-    <div v-else class="min-h-screen flex flex-col bg-gray-50">
+    <div v-else class="app-wrapper">
       <AppHeader />
-      <main class="flex-1">
+      <main class="app-main">
         <router-view />
       </main>
-      <AppFooter />
+      <!-- <AppFooter /> -->
     </div>
   </div>
 </template>
@@ -42,5 +42,20 @@ const isFullscreen = computed(() => route.name === 'landing' || route.name === '
   object-fit: cover;
   z-index: 9999;
   pointer-events: none;
+}
+
+.app-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+  background-color: rgb(var(--color-surface));
+}
+
+.app-main {
+  flex: 1;
+  overflow: hidden;
+  min-height: 0;
 }
 </style>

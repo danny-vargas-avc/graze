@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDish } from '../api/dishes'
 
@@ -9,27 +9,6 @@ const router = useRouter()
 const dish = ref(null)
 const loading = ref(true)
 const error = ref(null)
-
-const densityColors = {
-  excellent: 'bg-green-100 text-green-800 border-green-200',
-  good: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-  average: 'bg-orange-100 text-orange-800 border-orange-200',
-  low: 'bg-gray-100 text-gray-600 border-gray-200',
-}
-
-const densityDots = {
-  excellent: '🟢',
-  good: '🟡',
-  average: '🟠',
-  low: '⚪',
-}
-
-const densityClass = computed(() =>
-  dish.value ? densityColors[dish.value.density_label] : ''
-)
-const densityDot = computed(() =>
-  dish.value ? densityDots[dish.value.density_label] : ''
-)
 
 onMounted(async () => {
   try {
@@ -87,14 +66,6 @@ function goBack() {
               Serving: {{ dish.serving_size }}
             </p>
           </div>
-        </div>
-
-        <!-- Density badge -->
-        <div class="mt-4">
-          <span :class="['inline-flex items-center gap-2 px-3 py-1 rounded-full text-sm font-medium border', densityClass]">
-            {{ densityDot }} {{ dish.density_label.charAt(0).toUpperCase() + dish.density_label.slice(1) }} protein density
-            ({{ dish.protein_per_100cal }}g per 100 cal)
-          </span>
         </div>
       </div>
 

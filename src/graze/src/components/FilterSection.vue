@@ -5,7 +5,7 @@ import FilterChip from './FilterChip.vue'
 const props = defineProps({
   label: {
     type: String,
-    required: true,
+    default: '',
   },
   options: {
     type: Array,
@@ -36,7 +36,7 @@ function select(option) {
 
 <template>
   <div>
-    <label class="block text-sm font-medium text-gray-700 mb-2">{{ label }}</label>
+    <label v-if="label" class="filter-label">{{ label }}</label>
     <div class="flex flex-wrap gap-2">
       <FilterChip
         v-for="option in options"
@@ -48,3 +48,13 @@ function select(option) {
     </div>
   </div>
 </template>
+
+<style scoped>
+.filter-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: rgb(var(--color-text-secondary));
+  margin-bottom: 8px;
+}
+</style>

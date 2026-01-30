@@ -2,21 +2,184 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Custom scrollbar for webkit browsers */
+@layer base {
+  :root {
+    /* Light mode colors */
+    --color-background: 255 255 255;
+    --color-surface: 249 250 251;
+    --color-surface-elevated: 255 255 255;
+    --color-border: 229 231 235;
+    --color-border-hover: 209 213 219;
+
+    --color-text-primary: 17 24 39;
+    --color-text-secondary: 75 85 99;
+    --color-text-tertiary: 156 163 175;
+
+    --color-primary: 139 111 71;
+    --color-primary-hover: 115 88 54;
+    --color-primary-light: 245 235 220;
+
+    --color-accent: 184 149 106;
+    --color-accent-hover: 160 126 85;
+    --color-accent-light: 250 240 230;
+
+    --color-success: 34 197 94;
+    --color-warning: 251 146 60;
+    --color-error: 239 68 68;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  }
+
+  .dark {
+    /* Dark brown mode colors */
+    --color-background: 15 11 8;
+    --color-surface: 24 18 14;
+    --color-surface-elevated: 35 27 21;
+    --color-border: 50 38 30;
+    --color-border-hover: 70 54 42;
+
+    --color-text-primary: 245 240 235;
+    --color-text-secondary: 210 200 185;
+    --color-text-tertiary: 160 150 135;
+
+    --color-primary: 201 167 119;
+    --color-primary-hover: 184 149 106;
+    --color-primary-light: 92 75 53;
+
+    --color-accent: 160 119 74;
+    --color-accent-hover: 139 111 71;
+    --color-accent-light: 70 52 32;
+
+    --color-success: 74 222 128;
+    --color-warning: 251 146 60;
+    --color-error: 248 113 113;
+
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
+  }
+
+  * {
+    border-color: rgb(var(--color-border));
+  }
+
+  html,
+  body {
+    overflow: hidden;
+    height: 100vh;
+    width: 100vw;
+  }
+
+  body {
+    @apply antialiased;
+    background-color: rgb(var(--color-background));
+    color: rgb(var(--color-text-primary));
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+
+  /* Smooth transitions for theme switching */
+  body,
+  body * {
+    transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+  }
+}
+
+@layer utilities {
+  .bg-background {
+    background-color: rgb(var(--color-background));
+  }
+
+  .bg-surface {
+    background-color: rgb(var(--color-surface));
+  }
+
+  .bg-surface-elevated {
+    background-color: rgb(var(--color-surface-elevated));
+  }
+
+  .bg-primary {
+    background-color: rgb(var(--color-primary));
+  }
+
+  .bg-primary-hover {
+    background-color: rgb(var(--color-primary-hover));
+  }
+
+  .bg-primary-light {
+    background-color: rgb(var(--color-primary-light));
+  }
+
+  .bg-accent {
+    background-color: rgb(var(--color-accent));
+  }
+
+  .text-primary {
+    color: rgb(var(--color-text-primary));
+  }
+
+  .text-secondary {
+    color: rgb(var(--color-text-secondary));
+  }
+
+  .text-tertiary {
+    color: rgb(var(--color-text-tertiary));
+  }
+
+  .border-border {
+    border-color: rgb(var(--color-border));
+  }
+
+  .shadow-custom {
+    box-shadow: var(--shadow);
+  }
+
+  .shadow-custom-md {
+    box-shadow: var(--shadow-md);
+  }
+
+  .shadow-custom-lg {
+    box-shadow: var(--shadow-lg);
+  }
+
+  /* Gradient utilities */
+  .gradient-primary {
+    background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-accent)) 100%);
+  }
+
+  .text-gradient-primary {
+    background: linear-gradient(135deg, rgb(var(--color-primary)) 0%, rgb(var(--color-accent)) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+}
+
+/* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
 }
 
 ::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: rgb(var(--color-surface));
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
-  border-radius: 4px;
+  background: rgb(var(--color-border-hover));
+  border-radius: 6px;
+  border: 2px solid rgb(var(--color-surface));
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #a1a1a1;
+  background: rgb(var(--color-text-tertiary));
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--color-border-hover)) rgb(var(--color-surface));
 }
