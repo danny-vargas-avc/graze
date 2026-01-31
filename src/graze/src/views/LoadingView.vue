@@ -646,7 +646,7 @@ onUnmounted(() => {
 .loading-page {
   position: fixed;
   inset: 0;
-  background: #1a1a1a;
+  background: var(--color-surface);
   overflow: hidden;
 }
 

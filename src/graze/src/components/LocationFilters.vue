@@ -59,6 +59,9 @@
 
 <script setup>
 import { computed } from 'vue'
+import { useConfigStore } from '../stores/config'
+
+const configStore = useConfigStore()
 
 const props = defineProps({
   modelRadius: {
@@ -88,7 +91,8 @@ const emit = defineEmits([
   'clear-location'
 ])
 
-const radiusOptions = [5, 10, 25, 50]
+// Get radius options from config store
+const radiusOptions = computed(() => configStore.appSettings?.radius_options || [5, 10, 25, 50])
 
 const selectRadius = (radius) => {
   emit('update:modelRadius', radius)

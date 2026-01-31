@@ -80,8 +80,8 @@ const reportIssue = () => {
 
 <style scoped>
 .location-card {
-  background: white;
-  border: 1px solid #E2E8F0;
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   padding: 16px;
   cursor: pointer;
@@ -89,14 +89,14 @@ const reportIssue = () => {
 }
 
 .location-card:hover {
-  border-color: #3B82F6;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.1);
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
 }
 
 .location-card.highlighted {
-  border-color: #3B82F6;
-  background: #EFF6FF;
-  box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+  border-color: var(--color-primary);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-lg);
 }
 
 .card-header {
@@ -128,24 +128,25 @@ const reportIssue = () => {
   margin: 0;
   font-size: 16px;
   font-weight: 600;
-  color: #1E293B;
+  color: var(--color-text-primary);
   line-height: 1.4;
 }
 
 .restaurant-name {
   margin: 4px 0 0;
   font-size: 14px;
-  color: #64748B;
+  color: var(--color-text-secondary);
 }
 
 .distance {
-  background: #EFF6FF;
-  color: #3B82F6;
+  background: var(--color-surface);
+  color: var(--color-clickable);
   padding: 4px 12px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
+  border: 1px solid var(--color-border);
 }
 
 .card-body {
@@ -159,18 +160,18 @@ const reportIssue = () => {
 .address-line {
   margin: 0;
   font-size: 14px;
-  color: #475569;
+  color: var(--color-text-primary);
 }
 
 .city-state {
   margin: 4px 0 0;
   font-size: 14px;
-  color: #64748B;
+  color: var(--color-text-secondary);
 }
 
 .phone {
   font-size: 14px;
-  color: #64748B;
+  color: var(--color-text-secondary);
 }
 
 .card-actions {
@@ -190,21 +191,25 @@ const reportIssue = () => {
 }
 
 .action-button.primary {
-  background: #3B82F6;
+  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
   color: white;
+  box-shadow: var(--shadow-sm);
 }
 
 .action-button.primary:hover {
-  background: #2563EB;
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }
 
 .action-button.secondary {
-  background: #F1F5F9;
-  color: #64748B;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  border: 1px solid var(--color-border);
 }
 
 .action-button.secondary:hover {
-  background: #E2E8F0;
-  color: #475569;
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  border-color: var(--color-border-hover);
 }
 </style>

@@ -255,12 +255,14 @@ import FilterAccordion from '../components/FilterAccordion.vue'
 import { useDishesStore } from '../stores/dishes'
 import { useLocationsStore } from '../stores/locations'
 import { useRestaurantsStore } from '../stores/restaurants'
+import { useConfigStore } from '../stores/config'
 
 const route = useRoute()
 const router = useRouter()
 const dishesStore = useDishesStore()
 const locationsStore = useLocationsStore()
 const restaurantsStore = useRestaurantsStore()
+const configStore = useConfigStore()
 
 // Dishes store refs
 const {
@@ -294,58 +296,21 @@ const highlightedRestaurantSlug = ref(null)
 const showFilterDrawer = ref(false)
 const mapViewRef = ref(null)
 
-// Map state
-const center = ref([-74.0060, 40.7128]) // New York City
-const zoom = ref(12)
+// Map state - use config store with fallback
+const center = computed(() => configStore.appSettings?.default_map_center || [-74.0060, 40.7128])
+const zoom = computed(() => configStore.appSettings?.default_map_zoom || 12)
 const mapLoaded = ref(false)
 
-// Filter options
-const calorieOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-300', min: 0, max: 300 },
-  { label: '300-500', min: 300, max: 500 },
-  { label: '500-700', min: 500, max: 700 },
-  { label: '700+', min: 700, max: null },
-]
+// Filter options from config store
+const calorieOptions = computed(() => configStore.getFilterOptions('calories'))
+const proteinOptions = computed(() => configStore.getFilterOptions('protein'))
+const carbsOptions = computed(() => configStore.getFilterOptions('carbs'))
+const fatOptions = computed(() => configStore.getFilterOptions('fat'))
 
-const proteinOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-20g', min: 0, max: 20 },
-  { label: '20-40g', min: 20, max: 40 },
-  { label: '40-60g', min: 40, max: 60 },
-  { label: '60g+', min: 60, max: null },
-]
-
-const carbsOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-30g', min: null, max: 30 },
-  { label: '30-60g', min: null, max: 60 },
-  { label: '60-100g', min: null, max: 100 },
-  { label: '100g+', min: null, max: null },
-]
-
-const fatOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-15g', min: 0, max: 15 },
-  { label: '15-30g', min: 15, max: 30 },
-  { label: '30-50g', min: 30, max: 50 },
-  { label: '50g+', min: 50, max: null },
-]
-
-// Quick filters
+// Quick filters from config store
 const quickFilters = computed(() => {
-  const filters = [
-    { id: 'high-protein', label: 'High Protein 40g+' },
-    { id: 'under-500', label: 'Under 500 cal' },
-    { id: 'best-ratio', label: 'Best Ratio' },
-    { id: 'low-carb', label: 'Low Carb' },
-  ]
-
-  if (dishesStore.userLocation) {
-    filters.unshift({ id: 'nearby-5mi', label: 'Nearby 5 mi' })
-  }
-
-  return filters
+  const hasLocation = !!dishesStore.userLocation
+  return configStore.getQuickFilters(hasLocation)
 })
 
 // Computed filters for two-way binding

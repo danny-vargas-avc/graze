@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useDishesStore } from '../stores/dishes'
 import { useLocationsStore } from '../stores/locations'
+import { useConfigStore } from '../stores/config'
 
 import SearchBar from '../components/SearchBar.vue'
 import FilterChip from '../components/FilterChip.vue'
@@ -19,6 +20,7 @@ const route = useRoute()
 const router = useRouter()
 const dishesStore = useDishesStore()
 const locationsStore = useLocationsStore()
+const configStore = useConfigStore()
 
 const {
   dishes,
@@ -39,54 +41,16 @@ const {
   activeFilterCount,
 } = storeToRefs(dishesStore)
 
-// Filter options
-const calorieOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-300', min: 0, max: 300 },
-  { label: '300-500', min: 300, max: 500 },
-  { label: '500-700', min: 500, max: 700 },
-  { label: '700+', min: 700, max: null },
-]
+// Filter options from config store
+const calorieOptions = computed(() => configStore.getFilterOptions('calories'))
+const proteinOptions = computed(() => configStore.getFilterOptions('protein'))
+const carbsOptions = computed(() => configStore.getFilterOptions('carbs'))
+const fatOptions = computed(() => configStore.getFilterOptions('fat'))
 
-const proteinOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-20g', min: 0, max: 20 },
-  { label: '20-40g', min: 20, max: 40 },
-  { label: '40-60g', min: 40, max: 60 },
-  { label: '60g+', min: 60, max: null },
-]
-
-const carbsOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-30g', min: null, max: 30 },
-  { label: '30-60g', min: null, max: 60 },
-  { label: '60-100g', min: null, max: 100 },
-  { label: '100g+', min: null, max: null },
-]
-
-const fatOptions = [
-  { label: 'Any', min: null, max: null },
-  { label: '0-15g', min: 0, max: 15 },
-  { label: '15-30g', min: 15, max: 30 },
-  { label: '30-50g', min: 30, max: 50 },
-  { label: '50g+', min: 50, max: null },
-]
-
-// Quick filter presets
+// Quick filters from config store
 const quickFilters = computed(() => {
-  const filters = [
-    { id: 'high-protein', label: 'High Protein 40g+' },
-    { id: 'under-500', label: 'Under 500 cal' },
-    { id: 'best-ratio', label: 'Best Ratio' },
-    { id: 'low-carb', label: 'Low Carb' },
-  ]
-
-  // Add "Nearby" filter only if user location is available
-  if (dishesStore.userLocation) {
-    filters.unshift({ id: 'nearby-5mi', label: 'Nearby 5 mi' })
-  }
-
-  return filters
+  const hasLocation = !!dishesStore.userLocation
+  return configStore.getQuickFilters(hasLocation)
 })
 
 // Computed values for two-way binding

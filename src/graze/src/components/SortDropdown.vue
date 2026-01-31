@@ -1,5 +1,8 @@
 <script setup>
 import { ref, computed } from 'vue'
+import { useConfigStore } from '../stores/config'
+
+const configStore = useConfigStore()
 
 const props = defineProps({
   modelValue: {
@@ -16,25 +19,10 @@ const emit = defineEmits(['update:modelValue'])
 
 const isOpen = ref(false)
 
+// Get sort options from config store
 const options = computed(() => {
-  const baseOptions = [
-    { value: 'protein_ratio_desc', label: 'Best Protein/Cal' },
-    { value: 'protein_desc', label: 'Highest Protein' },
-    { value: 'protein_asc', label: 'Lowest Protein' },
-    { value: 'calories_asc', label: 'Lowest Calories' },
-    { value: 'calories_desc', label: 'Highest Calories' },
-    { value: 'carbs_asc', label: 'Lowest Carbs' },
-    { value: 'fat_desc', label: 'Highest Fat' },
-    { value: 'fat_asc', label: 'Lowest Fat' },
-    { value: 'alpha_asc', label: 'A-Z' },
-  ]
-
-  // Add distance sort option if user location is available
-  if (props.showDistance) {
-    baseOptions.unshift({ value: 'distance_asc', label: 'Nearest' })
-  }
-
-  return baseOptions
+  const hasLocation = props.showDistance
+  return configStore.getSortOptions(hasLocation)
 })
 
 const selectedLabel = computed(() => {

@@ -1,13 +1,38 @@
 <script setup>
-import { computed } from 'vue'
+import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
 import AppFooter from './components/AppFooter.vue'
 import { useTransitionStore } from './stores/transition'
+import { useConfigStore } from './stores/config'
 
 const route = useRoute()
 const transitionStore = useTransitionStore()
+const configStore = useConfigStore()
 const isFullscreen = computed(() => route.name === 'landing' || route.name === 'loading')
+
+let versionCheckInterval = null
+
+// Initialize configuration on app startup
+onMounted(async () => {
+  // Fetch config (non-blocking - uses cache/fallback if API fails)
+  await configStore.fetchConfig()
+
+  // Check for config version updates every hour
+  versionCheckInterval = setInterval(async () => {
+    const hasUpdate = await configStore.checkForUpdates()
+    if (hasUpdate) {
+      console.log('Config update detected - refreshing configuration')
+      await configStore.invalidateCache()
+    }
+  }, 60 * 60 * 1000) // 1 hour
+})
+
+onUnmounted(() => {
+  if (versionCheckInterval) {
+    clearInterval(versionCheckInterval)
+  }
+})
 </script>
 
 <template>

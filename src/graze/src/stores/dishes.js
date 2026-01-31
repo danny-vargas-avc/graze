@@ -1,41 +1,45 @@
 import { defineStore } from 'pinia'
 import { getDishes } from '../api/dishes'
 import { useLocationsStore } from './locations'
+import { useConfigStore } from './config'
 
 export const useDishesStore = defineStore('dishes', {
-  state: () => ({
-    dishes: [],
-    total: 0,
-    loading: false,
-    error: null,
+  state: () => {
+    const configStore = useConfigStore()
+    return {
+      dishes: [],
+      total: 0,
+      loading: false,
+      error: null,
 
-    // Request cancellation
-    abortController: null,
+      // Request cancellation
+      abortController: null,
 
-    // Filters
-    search: '',
-    caloriesMin: null,
-    caloriesMax: null,
-    proteinMin: null,
-    proteinMax: null,
-    carbsMax: null,
-    fatMin: null,
-    fatMax: null,
-    selectedRestaurants: [],
-    category: null,
+      // Filters
+      search: '',
+      caloriesMin: null,
+      caloriesMax: null,
+      proteinMin: null,
+      proteinMax: null,
+      carbsMax: null,
+      fatMin: null,
+      fatMax: null,
+      selectedRestaurants: [],
+      category: null,
 
-    // Location
-    userLocation: null, // { lat, lng }
-    radiusMiles: null, // for "nearby" filter
+      // Location
+      userLocation: null, // { lat, lng }
+      radiusMiles: null, // for "nearby" filter
 
-    // Sorting
-    sort: 'protein_ratio_desc',
+      // Sorting - use config default
+      sort: configStore.appSettings?.default_sort || 'protein_ratio_desc',
 
-    // Pagination
-    limit: 20,
-    offset: 0,
-    hasMore: false,
-  }),
+      // Pagination - use config default
+      limit: configStore.appSettings?.items_per_page || 20,
+      offset: 0,
+      hasMore: false,
+    }
+  },
 
   getters: {
     activeFilterCount: (state) => {
@@ -187,6 +191,7 @@ export const useDishesStore = defineStore('dishes', {
     },
 
     clearFilters() {
+      const configStore = useConfigStore()
       this.search = ''
       this.caloriesMin = null
       this.caloriesMax = null
@@ -198,34 +203,39 @@ export const useDishesStore = defineStore('dishes', {
       this.selectedRestaurants = []
       this.category = null
       this.radiusMiles = null
-      this.sort = 'protein_ratio_desc'
+      this.sort = configStore.appSettings?.default_sort || 'protein_ratio_desc'
       this.fetchDishes()
     },
 
-    // Apply quick filter presets
-    applyQuickFilter(preset) {
+    // Apply quick filter presets from config
+    applyQuickFilter(presetId) {
+      const configStore = useConfigStore()
       this.clearFilters()
 
-      switch (preset) {
-        case 'high-protein':
-          this.proteinMin = 40
-          break
-        case 'under-500':
-          this.caloriesMax = 500
-          break
-        case 'best-ratio':
-          this.sort = 'protein_ratio_desc'
-          break
-        case 'low-carb':
-          this.carbsMax = 30
-          break
-        case 'nearby-5mi':
-          // Only apply if user location is set
-          if (this.userLocation) {
-            this.radiusMiles = 5
-            this.sort = 'distance_asc'
-          }
-          break
+      // Get filter configuration from config store
+      const filterConfig = configStore.getQuickFilterById(presetId)
+      if (!filterConfig) {
+        console.warn(`Quick filter '${presetId}' not found in config`)
+        this.fetchDishes()
+        return
+      }
+
+      // Apply filter parameters from config
+      const params = filterConfig.filter_params
+      if (params.protein_min !== undefined) this.proteinMin = params.protein_min
+      if (params.protein_max !== undefined) this.proteinMax = params.protein_max
+      if (params.calories_min !== undefined) this.caloriesMin = params.calories_min
+      if (params.calories_max !== undefined) this.caloriesMax = params.calories_max
+      if (params.carbs_min !== undefined) this.carbsMin = params.carbs_min
+      if (params.carbs_max !== undefined) this.carbsMax = params.carbs_max
+      if (params.fat_min !== undefined) this.fatMin = params.fat_min
+      if (params.fat_max !== undefined) this.fatMax = params.fat_max
+      if (params.sort !== undefined) this.sort = params.sort
+
+      // Handle radius/location filters
+      if (params.radius !== undefined && this.userLocation) {
+        this.radiusMiles = params.radius
+        if (params.sort) this.sort = params.sort
       }
 
       this.fetchDishes()

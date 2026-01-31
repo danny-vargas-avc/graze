@@ -21,6 +21,9 @@ import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import Supercluster from 'supercluster'
 import 'mapbox-gl/dist/mapbox-gl.css'
+import { useConfigStore } from '../stores/config'
+
+const configStore = useConfigStore()
 
 const props = defineProps({
   center: {
@@ -71,16 +74,6 @@ const getMapStyle = () => {
     : 'mapbox://styles/mapbox/streets-v12'
 }
 
-// Restaurant color mapping
-const restaurantColors = {
-  'chipotle': '#A81612',
-  'cava': '#F4A261',
-  'sweetgreen': '#6DBF4B',
-  'panera': '#5C8B3E',
-  'chick-fil-a': '#E51937',
-  'default': '#3B82F6'
-}
-
 // Initialize Supercluster
 const initCluster = () => {
   clusterIndex = new Supercluster({
@@ -106,7 +99,7 @@ const createGeoJSON = (locations) => {
         name: location.name,
         restaurant: location.restaurant,
         restaurantSlug: location.restaurant?.slug || 'default',
-        color: restaurantColors[location.restaurant?.slug] || restaurantColors.default
+        color: configStore.getRestaurantColor(location.restaurant?.slug)
       }
     }))
   }
@@ -574,16 +567,16 @@ onMounted(() => {
     }, 300)
   })
 
-  // Handle window resize
-  const handleResize = () => {
+  // Handle container resize using ResizeObserver
+  const resizeObserver = new ResizeObserver(() => {
     if (map) {
       map.resize()
     }
-  }
-  window.addEventListener('resize', handleResize)
+  })
+  resizeObserver.observe(mapContainer.value)
 
-  // Store cleanup function
-  map._handleResize = handleResize
+  // Store cleanup reference
+  map._resizeObserver = resizeObserver
 })
 
 onUnmounted(() => {
@@ -598,9 +591,9 @@ onUnmounted(() => {
     if (map._themeObserver) {
       map._themeObserver.disconnect()
     }
-    // Remove resize listener
-    if (map._handleResize) {
-      window.removeEventListener('resize', map._handleResize)
+    // Disconnect resize observer
+    if (map._resizeObserver) {
+      map._resizeObserver.disconnect()
     }
     // Remove map
     map.remove()
