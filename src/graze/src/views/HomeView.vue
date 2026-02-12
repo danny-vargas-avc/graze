@@ -18,20 +18,45 @@ const activeCategory = ref(null)
 const highProteinDishes = ref([])
 const lowCalDishes = ref([])
 const bestRatioDishes = ref([])
+const bowlDishes = ref([])
+const saladDishes = ref([])
+const burgerDishes = ref([])
 const loading = ref(true)
 
 async function fetchCarousels(category = null) {
   loading.value = true
   try {
     const base = category ? { category } : {}
-    const [highProtein, lowCal, bestRatio] = await Promise.all([
+
+    // Core macro-based carousels (always fetched)
+    const corePromises = [
       getDishes({ ...base, sort: 'protein_desc', limit: 10 }),
       getDishes({ ...base, calories_max: 500, sort: 'protein_ratio_desc', limit: 10 }),
       getDishes({ ...base, sort: 'protein_ratio_desc', limit: 10 }),
-    ])
-    highProteinDishes.value = highProtein.data
-    lowCalDishes.value = lowCal.data
-    bestRatioDishes.value = bestRatio.data
+    ]
+
+    // Category carousels only when no filter is active
+    const categoryPromises = category ? [] : [
+      getDishes({ category: 'bowl', sort: 'protein_desc', limit: 10 }),
+      getDishes({ category: 'salad', sort: 'protein_desc', limit: 10 }),
+      getDishes({ category: 'burger', sort: 'protein_desc', limit: 10 }),
+    ]
+
+    const results = await Promise.all([...corePromises, ...categoryPromises])
+
+    highProteinDishes.value = results[0].data
+    lowCalDishes.value = results[1].data
+    bestRatioDishes.value = results[2].data
+
+    if (!category) {
+      bowlDishes.value = results[3].data
+      saladDishes.value = results[4].data
+      burgerDishes.value = results[5].data
+    } else {
+      bowlDishes.value = []
+      saladDishes.value = []
+      burgerDishes.value = []
+    }
   } catch (e) {
     console.error('Failed to load carousel data:', e)
   } finally {
@@ -122,18 +147,36 @@ onMounted(() => {
         </div>
       </CarouselSection>
 
-      <!-- All Restaurants grid -->
-      <section class="all-restaurants">
-        <h2 class="section-title">All Restaurants</h2>
-        <div class="restaurants-grid">
-          <RestaurantCard
-            v-for="restaurant in restaurants"
-            :key="restaurant.slug"
-            :restaurant="restaurant"
-            full-width
+      <!-- Category carousels (shown when no category filter is active) -->
+      <CarouselSection v-if="bowlDishes.length" title="Top Bowls" icon="bowl">
+        <div class="carousel-scroll hide-scrollbar">
+          <DishCardCompact
+            v-for="dish in bowlDishes"
+            :key="dish.id"
+            :dish="dish"
           />
         </div>
-      </section>
+      </CarouselSection>
+
+      <CarouselSection v-if="saladDishes.length" title="Top Salads" icon="salad">
+        <div class="carousel-scroll hide-scrollbar">
+          <DishCardCompact
+            v-for="dish in saladDishes"
+            :key="dish.id"
+            :dish="dish"
+          />
+        </div>
+      </CarouselSection>
+
+      <CarouselSection v-if="burgerDishes.length" title="Top Burgers" icon="burger">
+        <div class="carousel-scroll hide-scrollbar">
+          <DishCardCompact
+            v-for="dish in burgerDishes"
+            :key="dish.id"
+            :dish="dish"
+          />
+        </div>
+      </CarouselSection>
     </div>
   </div>
 </template>
@@ -190,35 +233,4 @@ onMounted(() => {
   50% { opacity: 0.5; }
 }
 
-.all-restaurants {
-  padding: 0 16px;
-  margin-top: 8px;
-}
-
-.section-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: var(--color-text-primary);
-  margin-bottom: 12px;
-}
-
-.restaurants-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-@media (min-width: 769px) {
-  .restaurants-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 16px;
-  }
-}
-
-@media (min-width: 1024px) {
-  .restaurants-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
 </style>

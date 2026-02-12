@@ -31,6 +31,25 @@ defineProps({
         <svg v-else-if="icon === 'ratio'" class="section-icon" viewBox="0 0 20 20" fill="currentColor">
           <path d="M15.98 1.804a1 1 0 00-1.96 0l-.24 1.192a1 1 0 01-.784.785l-1.192.238a1 1 0 000 1.962l1.192.238a1 1 0 01.785.785l.238 1.192a1 1 0 001.962 0l.238-1.192a1 1 0 01.785-.785l1.192-.238a1 1 0 000-1.962l-1.192-.238a1 1 0 01-.785-.785l-.238-1.192zM6.949 5.684a1 1 0 00-1.898 0l-.683 2.051a1 1 0 01-.633.633l-2.052.683a1 1 0 000 1.898l2.052.684a1 1 0 01.633.632l.683 2.052a1 1 0 001.898 0l.683-2.052a1 1 0 01.633-.632l2.052-.684a1 1 0 000-1.898l-2.052-.683a1 1 0 01-.633-.633L6.95 5.684zM13.949 13.684a1 1 0 00-1.898 0l-.184.551a1 1 0 01-.632.633l-.551.183a1 1 0 000 1.898l.551.184a1 1 0 01.633.632l.183.551a1 1 0 001.898 0l.184-.551a1 1 0 01.632-.632l.551-.184a1 1 0 000-1.898l-.551-.183a1 1 0 01-.633-.633l-.183-.551z" />
         </svg>
+        <!-- Bowl icon -->
+        <svg v-else-if="icon === 'bowl'" class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" d="M3 12h18" />
+          <path stroke-linecap="round" d="M5 12c0 3.866 3.134 7 7 7s7-3.134 7-7" />
+          <path stroke-linecap="round" d="M8 8c0-1 .5-2 2-2M14 6c0-1.5-1-2-1-3" />
+        </svg>
+        <!-- Salad/leaf icon -->
+        <svg v-else-if="icon === 'salad'" class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 21c-4.97 0-9-2.686-9-6h18c0 3.314-4.03 6-9 6z" />
+          <path stroke-linecap="round" d="M7 10c-1-3 1-6 5-7 4 1 6 4 5 7" />
+          <path stroke-linecap="round" d="M12 3v7" />
+        </svg>
+        <!-- Burger icon -->
+        <svg v-else-if="icon === 'burger'" class="section-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <path stroke-linecap="round" d="M4 15h16" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 15c0 2 1.5 3 3 3h10c1.5 0 3-1 3-3" />
+          <path stroke-linecap="round" d="M3 12h18" />
+          <path stroke-linecap="round" stroke-linejoin="round" d="M3 12c0-4 3.5-7 9-7s9 3 9 7" />
+        </svg>
         <h2 class="title">{{ title }}</h2>
       </div>
       <RouterLink v-if="seeAllTo" :to="seeAllTo" class="see-all">

@@ -46,13 +46,9 @@ const props = defineProps({
     type: String,
     default: null
   },
-  dishes: {
-    type: Array,
-    default: () => []
-  }
 })
 
-const emit = defineEmits(['move', 'load', 'marker-click', 'bounds-change', 'dish-click', 'view-all-dishes'])
+const emit = defineEmits(['move', 'load', 'marker-click', 'bounds-change'])
 
 const mapContainer = ref(null)
 const isLoading = ref(true)
@@ -60,7 +56,6 @@ const isDarkMode = ref(false)
 let map = null
 let clusterIndex = null
 let boundsChangeTimeout = null
-let currentPopup = null
 
 // Check for dark mode
 const updateDarkMode = () => {
@@ -124,113 +119,6 @@ const getClusters = () => {
     [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
     Math.floor(zoom)
   )
-}
-
-// Create popup HTML content for a location
-const createPopupContent = (location) => {
-  // Find dishes for this location's restaurant
-  const locationDishes = props.dishes.filter(dish =>
-    dish.restaurant?.slug === location.restaurant.slug
-  )
-
-  // Limit to first 3 dishes
-  const displayDishes = locationDishes.slice(0, 3)
-
-  let dishesHTML = ''
-  if (displayDishes.length > 0) {
-    dishesHTML = displayDishes.map(dish => `
-      <div class="popup-dish">
-        <div class="dish-info">
-          <h4 class="dish-name">${dish.name}</h4>
-          <p class="dish-macros">${dish.calories} cal · ${dish.protein}g protein</p>
-        </div>
-        <button class="see-more-button" data-dish-id="${dish.id}">See more</button>
-      </div>
-    `).join('')
-  } else {
-    dishesHTML = '<p class="no-dishes">No dishes available</p>'
-  }
-
-  const totalCount = locationDishes.length
-  const viewAllButton = totalCount > 3 ? `
-    <button class="view-all-button" data-restaurant-slug="${location.restaurant.slug}">
-      View all ${totalCount} dishes
-    </button>
-  ` : ''
-
-  return `
-    <div class="map-popup">
-      <h3 class="popup-restaurant-name">${location.restaurant.name}</h3>
-      <p class="popup-address">${location.name}</p>
-      <div class="popup-dishes">
-        ${dishesHTML}
-      </div>
-      ${viewAllButton}
-    </div>
-  `
-}
-
-// Show popup for a location
-const showPopup = (location, coordinates) => {
-  // Close existing popup
-  if (currentPopup) {
-    currentPopup.remove()
-  }
-
-  // Pan map to center the marker with offset for popup
-  map.easeTo({
-    center: coordinates,
-    offset: [0, -100], // Offset upward to account for popup height
-    duration: 500
-  })
-
-  // Create new popup after panning starts
-  setTimeout(() => {
-    currentPopup = new mapboxgl.Popup({
-      closeButton: true,
-      closeOnClick: true,
-      maxWidth: '320px',
-      className: 'location-popup'
-    })
-      .setLngLat(coordinates)
-      .setHTML(createPopupContent(location))
-      .addTo(map)
-
-    // Attach click handlers after popup is rendered
-    setTimeout(() => {
-      const popupElement = currentPopup.getElement()
-      if (!popupElement) return
-
-      // Handle "See more" button clicks
-      const seeMoreButtons = popupElement.querySelectorAll('.see-more-button')
-      seeMoreButtons.forEach(button => {
-        button.addEventListener('click', (e) => {
-          const dishId = e.target.getAttribute('data-dish-id')
-          if (dishId) {
-            emit('dish-click', dishId)
-            currentPopup.remove()
-          }
-        })
-      })
-
-      // Handle "View all dishes" button click
-      const viewAllButton = popupElement.querySelector('.view-all-button')
-      if (viewAllButton) {
-        viewAllButton.addEventListener('click', (e) => {
-          const restaurantSlug = e.target.getAttribute('data-restaurant-slug')
-          if (restaurantSlug) {
-            emit('view-all-dishes', restaurantSlug)
-            currentPopup.remove()
-          }
-        })
-      }
-    }, 0)
-
-    // Clean up popup reference when closed
-    currentPopup.on('close', () => {
-      currentPopup = null
-    })
-  }, 100)
 }
 
 // Update user location marker
@@ -430,10 +318,6 @@ const updateMarkers = () => {
           restaurant: JSON.parse(feature.properties.restaurant)
         }
 
-        // Show popup with dishes
-        showPopup(location, feature.geometry.coordinates)
-
-        // Still emit event for any parent component that might need it
         emit('marker-click', {
           ...location,
           coordinates: feature.geometry.coordinates
@@ -745,131 +629,3 @@ defineExpose({
 }
 </style>
 
-<style>
-/* Popup styles (not scoped so they apply to Mapbox popup) */
-.mapboxgl-popup-content {
-  padding: 0 !important;
-  border-radius: 12px !important;
-  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1) !important;
-}
-
-.mapboxgl-popup-close-button {
-  font-size: 24px !important;
-  padding: 8px 12px !important;
-  color: var(--color-text-secondary) !important;
-  transition: color 200ms ease !important;
-}
-
-.mapboxgl-popup-close-button:hover {
-  color: var(--color-text-primary) !important;
-  background-color: transparent !important;
-}
-
-.map-popup {
-  padding: 16px;
-  max-width: 320px;
-}
-
-.popup-restaurant-name {
-  margin: 0 0 4px 0;
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.popup-address {
-  margin: 0 0 12px 0;
-  font-size: 13px;
-  color: var(--color-text-secondary);
-}
-
-.popup-dishes {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.popup-dish {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 12px;
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  transition: all 200ms ease;
-}
-
-.popup-dish:hover {
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.dish-info {
-  flex: 1;
-  min-width: 0;
-}
-
-.dish-name {
-  margin: 0 0 4px 0;
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.dish-macros {
-  margin: 0;
-  font-size: 12px;
-  color: var(--color-text-secondary);
-}
-
-.see-more-button {
-  padding: 6px 12px;
-  background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
-  color: white;
-  border: none;
-  border-radius: 6px;
-  font-size: 12px;
-  font-weight: 600;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-  transition: opacity 200ms ease;
-}
-
-.see-more-button:hover {
-  opacity: 0.9;
-}
-
-.no-dishes {
-  padding: 12px;
-  text-align: center;
-  font-size: 13px;
-  color: var(--color-text-tertiary);
-  margin: 0;
-}
-
-.view-all-button {
-  width: 100%;
-  margin-top: 12px;
-  padding: 10px 16px;
-  background-color: var(--color-surface-elevated);
-  color: var(--color-primary);
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 200ms ease;
-}
-
-.view-all-button:hover {
-  background-color: var(--color-surface);
-  border-color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
-}
-</style>

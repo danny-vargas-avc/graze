@@ -33,10 +33,6 @@ function handleBoundsChange(data) {
   locationsStore.fetchLocations({ bbox: data.bbox })
 }
 
-function handleDishClick(dishId) {
-  router.push({ name: 'dish-detail', params: { id: dishId } })
-}
-
 function handleViewAll(restaurantSlug) {
   router.push({ name: 'restaurant-detail', params: { slug: restaurantSlug } })
 }
@@ -58,12 +54,10 @@ onMounted(() => {
       :center="center"
       :zoom="zoom"
       :locations="locations"
-      :dishes="[]"
       :userLocation="userLocation"
       @load="handleMapLoad"
       @marker-click="handleMarkerClick"
       @bounds-change="handleBoundsChange"
-      @dish-click="handleDishClick"
     />
 
     <!-- Bottom sheet for selected location -->
