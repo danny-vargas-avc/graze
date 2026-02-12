@@ -25,6 +25,10 @@ const brandColor = computed(() => {
   return configStore.getRestaurantColor(props.dish.restaurant?.slug) || '#06C167'
 })
 
+const iconUrl = computed(() => {
+  return configStore.getRestaurantIcon(props.dish.restaurant?.slug)
+})
+
 const isFavorite = computed(() => favoritesStore.isFavorite(props.dish.id))
 
 function toggleFavorite(e) {
@@ -44,13 +48,19 @@ function toggleFavorite(e) {
 
     <div class="card-content">
       <!-- Food photo or restaurant logo -->
-      <div class="logo-container" :class="{ 'has-photo': dish.image_url }" :style="{ borderColor: brandColor + '40' }">
+      <div class="logo-container" :class="{ 'has-photo': dish.image_url, 'has-icon': !dish.image_url && iconUrl }">
         <img
           v-if="dish.image_url"
           :src="dish.image_url"
           :alt="dish.name"
           class="food-photo"
           loading="lazy"
+        />
+        <img
+          v-else-if="iconUrl"
+          :src="iconUrl"
+          :alt="`${dish.restaurant.name} logo`"
+          class="icon-photo"
         />
         <LazyImage
           v-else-if="dish.restaurant.logo_url"
@@ -148,15 +158,33 @@ function toggleFavorite(e) {
   border-radius: 10px;
   overflow: hidden;
   border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
 }
 
 .logo-container.has-photo {
   width: 56px;
   height: 56px;
   border-radius: 8px;
+  padding: 0;
+  background: none;
+}
+
+.logo-container.has-icon {
+  padding: 0;
+  border: none;
 }
 
 .food-photo {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.icon-photo {
   width: 100%;
   height: 100%;
   object-fit: cover;

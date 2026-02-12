@@ -65,23 +65,24 @@ function setCategory(cat) {
 
     <!-- Content -->
     <template v-else-if="restaurant">
-      <!-- Brand color banner -->
-      <div class="banner" :style="{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}dd)` }">
+      <!-- Banner with logo -->
+      <div class="banner" :style="{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }">
         <button class="back-btn" @click="goBack">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
             <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
           </svg>
         </button>
+        <!-- Logo displayed white on gradient -->
         <div class="banner-content">
+          <img
+            v-if="restaurant.logo_url"
+            :src="restaurant.logo_url"
+            :alt="restaurant.name"
+            class="banner-logo"
+          />
           <h1 class="restaurant-title">{{ restaurant.name }}</h1>
           <div class="banner-meta">
-            <span class="meta-item">
-              <svg class="meta-icon" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1.5a.5.5 0 01.5.5v3.793l2.854 2.853a.5.5 0 01-.708.708l-3-3A.5.5 0 017.5 6V2a.5.5 0 01.5-.5z" />
-                <path d="M8 15A7 7 0 108 1a7 7 0 000 14zm0-1A6 6 0 108 2a6 6 0 000 12z" />
-              </svg>
-              {{ restaurant.item_count }} items
-            </span>
+            <span class="meta-item">{{ restaurant.item_count }} items</span>
             <a
               v-if="restaurant.website_url"
               :href="restaurant.website_url"
@@ -89,11 +90,10 @@ function setCategory(cat) {
               rel="noopener noreferrer"
               class="meta-link"
             >
-              <svg class="meta-icon" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9.874a2 2 0 01-1.874 3H5a2 2 0 110-4h1.354z" />
-                <path d="M9.646 10.5H12a3 3 0 000-6H9a3 3 0 00-2.83 4h.996a2 2 0 011.874-3H11a2 2 0 110 4H9.646z" />
-              </svg>
               Website
+              <svg class="meta-icon" viewBox="0 0 16 16" fill="currentColor">
+                <path fill-rule="evenodd" d="M4.22 11.78a.75.75 0 010-1.06L9.44 5.5H5.75a.75.75 0 010-1.5h5.5a.75.75 0 01.75.75v5.5a.75.75 0 01-1.5 0V6.56l-5.22 5.22a.75.75 0 01-1.06 0z" clip-rule="evenodd" />
+              </svg>
             </a>
           </div>
         </div>
@@ -178,6 +178,7 @@ function setCategory(cat) {
   padding: 20px;
   padding-top: 16px;
   position: relative;
+  overflow: hidden;
 }
 
 .back-btn {
@@ -185,7 +186,9 @@ function setCategory(cat) {
   height: 36px;
   border-radius: 50%;
   border: none;
-  background-color: rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   color: #ffffff;
   cursor: pointer;
   display: flex;
@@ -193,26 +196,44 @@ function setCategory(cat) {
   justify-content: center;
   margin-bottom: 16px;
   padding: 0;
-  transition: background-color 150ms ease;
+  transition: background 150ms ease, transform 150ms ease;
+  position: relative;
+  z-index: 2;
 }
 
 .back-btn:hover {
-  background-color: rgba(255, 255, 255, 0.3);
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.back-btn:active {
+  transform: scale(0.9);
 }
 
 .back-btn svg {
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
 }
 
 .banner-content {
   color: #ffffff;
+  position: relative;
+  z-index: 2;
+}
+
+.banner-logo {
+  max-height: 56px;
+  max-width: 200px;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.85;
+  margin-bottom: 14px;
 }
 
 .restaurant-title {
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 800;
   margin-bottom: 8px;
+  letter-spacing: -0.02em;
 }
 
 .banner-meta {
@@ -223,22 +244,19 @@ function setCategory(cat) {
 }
 
 .meta-item {
-  display: flex;
-  align-items: center;
-  gap: 5px;
   font-size: 14px;
   font-weight: 500;
 }
 
 .meta-icon {
-  width: 14px;
-  height: 14px;
+  width: 13px;
+  height: 13px;
 }
 
 .meta-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 5px;
+  gap: 4px;
   font-size: 14px;
   font-weight: 500;
   color: #ffffff;

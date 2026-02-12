@@ -68,14 +68,15 @@ const activeTab = computed(() => {
 <style scoped>
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 12px;
+  left: 12px;
+  right: 12px;
   display: flex;
   background-color: var(--color-surface-elevated);
-  border-top: 1px solid var(--color-border);
-  box-shadow: 0 -1px 3px rgba(0, 0, 0, 0.08);
-  padding: 6px 0 calc(6px + env(safe-area-inset-bottom));
+  border-radius: 20px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12), 0 0 0 1px rgba(0, 0, 0, 0.04);
+  padding: 4px 0;
+  padding-bottom: calc(4px + env(safe-area-inset-bottom));
   z-index: 100;
 }
 

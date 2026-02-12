@@ -24,8 +24,16 @@ const gradientStyle = computed(() => ({
   background: `linear-gradient(135deg, ${brandColor.value} 0%, ${brandColor.value}cc 100%)`,
 }))
 
-// Category icons for the thumbnail grid
-const categoryIcons = ['bowl', 'salad', 'sandwich']
+const iconUrl = computed(() => {
+  return configStore.getRestaurantIcon(props.restaurant.slug)
+})
+
+const bodyLogoUrl = computed(() => {
+  return iconUrl.value || props.restaurant.logo_url
+})
+
+const hasIcon = computed(() => !!iconUrl.value)
+
 </script>
 
 <template>
@@ -34,45 +42,33 @@ const categoryIcons = ['bowl', 'salad', 'sandwich']
     class="restaurant-card"
     :class="{ 'full-width': fullWidth }"
   >
-    <!-- Gradient header with thumbnail icons -->
+    <!-- Gradient header with logo -->
     <div class="card-header" :style="gradientStyle">
-      <div class="thumbnail-grid">
-        <div v-for="(icon, i) in categoryIcons" :key="i" class="thumbnail">
-          <!-- Bowl -->
-          <svg v-if="icon === 'bowl'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" d="M3 12h18" />
-            <path stroke-linecap="round" d="M5 12c0 3.866 3.134 7 7 7s7-3.134 7-7" />
-          </svg>
-          <!-- Salad -->
-          <svg v-else-if="icon === 'salad'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M12 3c-1.5 0-3 .5-4 2-1 1.5-.5 3 0 4H4c0 4.418 3.582 8 8 8s8-3.582 8-8h-4c.5-1 1-2.5 0-4-1-1.5-2.5-2-4-2z" />
-          </svg>
-          <!-- Sandwich -->
-          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M4 17h16l-1-3H5l-1 3z" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M5 14l1-4h12l1 4" />
-            <path stroke-linecap="round" stroke-linejoin="round" d="M6 10c0-3 2.686-5 6-5s6 2 6 5" />
-          </svg>
-        </div>
+      <img
+        v-if="restaurant.logo_url"
+        :src="restaurant.logo_url"
+        :alt="restaurant.name"
+        class="header-logo"
+      />
+      <div v-else class="logo-placeholder">
+        <span>{{ restaurant.name.charAt(0) }}</span>
       </div>
     </div>
 
     <!-- Card body -->
     <div class="card-body">
-      <h3 class="restaurant-name">{{ restaurant.name }}</h3>
-      <div class="restaurant-meta">
-        <span class="meta-item">
-          <svg class="meta-icon" viewBox="0 0 20 20" fill="currentColor">
-            <path d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" />
-          </svg>
-          {{ restaurant.item_count }} items
-        </span>
-        <span v-if="restaurant.location_count" class="meta-item">
-          <svg class="meta-icon" viewBox="0 0 20 20" fill="currentColor">
-            <path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd" />
-          </svg>
-          {{ restaurant.location_count.toLocaleString() }} locations
-        </span>
+      <div class="body-top">
+        <div v-if="bodyLogoUrl" class="body-logo" :class="{ 'has-icon': hasIcon }">
+          <img :src="bodyLogoUrl" :alt="restaurant.name" />
+        </div>
+        <div class="body-text">
+          <h3 class="restaurant-name">{{ restaurant.name }}</h3>
+          <div class="restaurant-meta">
+            <span class="meta-item">{{ restaurant.item_count }} items</span>
+            <span v-if="restaurant.location_count" class="meta-dot">&middot;</span>
+            <span v-if="restaurant.location_count" class="meta-item">{{ restaurant.location_count.toLocaleString() }} locations</span>
+          </div>
+        </div>
       </div>
     </div>
   </RouterLink>
@@ -105,27 +101,31 @@ const categoryIcons = ['bowl', 'salad', 'sandwich']
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 16px;
+  position: relative;
+  overflow: hidden;
+  padding: 16px 24px;
 }
 
-.thumbnail-grid {
-  display: flex;
-  gap: 12px;
+.header-logo {
+  max-height: 60px;
+  max-width: 80%;
+  object-fit: contain;
+  filter: brightness(0) invert(1);
+  opacity: 0.9;
+  position: relative;
+  z-index: 1;
 }
 
-.thumbnail {
-  width: 40px;
-  height: 40px;
-  border-radius: 8px;
+.logo-placeholder {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: rgba(255, 255, 255, 0.2);
   display: flex;
   align-items: center;
   justify-content: center;
-}
-
-.thumbnail svg {
-  width: 22px;
-  height: 22px;
+  font-size: 24px;
+  font-weight: 800;
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -133,34 +133,77 @@ const categoryIcons = ['bowl', 'salad', 'sandwich']
   padding: 12px;
 }
 
+.body-top {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.body-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.body-logo.has-icon {
+  padding: 0;
+  border: none;
+}
+
+.body-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.body-logo.has-icon img {
+  object-fit: cover;
+}
+
+.body-text {
+  flex: 1;
+  min-width: 0;
+}
+
 .restaurant-name {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-primary);
-  margin-bottom: 6px;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .restaurant-meta {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
+  align-items: center;
+  gap: 6px;
 }
 
 .meta-item {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 13px;
-  color: var(--color-text-secondary);
+  font-size: 12px;
+  color: var(--color-text-tertiary);
 }
 
-.meta-icon {
-  width: 14px;
-  height: 14px;
+.meta-dot {
+  font-size: 12px;
   color: var(--color-text-tertiary);
 }
 
 .full-width .card-header {
   height: 80px;
+}
+
+.full-width .header-logo {
+  max-height: 48px;
 }
 </style>

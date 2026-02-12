@@ -20,6 +20,14 @@ const brandColor = computed(() => {
   return configStore.getRestaurantColor(props.location.restaurant?.slug) || '#06C167'
 })
 
+const iconUrl = computed(() => {
+  return configStore.getRestaurantIcon(props.location.restaurant?.slug)
+})
+
+const sheetLogoUrl = computed(() => {
+  return iconUrl.value || props.location.restaurant?.logo_url
+})
+
 const addressLine = computed(() => {
   const parts = []
   if (props.location.address) parts.push(props.location.address)
@@ -68,7 +76,12 @@ onMounted(() => {
       <!-- Header -->
       <div class="sheet-header">
         <div class="header-left">
-          <div class="brand-indicator" :style="{ backgroundColor: brandColor }"></div>
+          <div class="sheet-logo" :class="{ 'has-icon': iconUrl }" :style="{ borderColor: brandColor + '30' }">
+            <img v-if="sheetLogoUrl" :src="sheetLogoUrl" :alt="location.restaurant?.name" />
+            <div v-else class="logo-fallback" :style="{ backgroundColor: brandColor }">
+              {{ location.restaurant?.name?.charAt(0) }}
+            </div>
+          </div>
           <div>
             <h3 class="restaurant-name">{{ location.restaurant?.name }}</h3>
             <p class="location-address">{{ addressLine }}</p>
@@ -185,12 +198,44 @@ onMounted(() => {
   min-width: 0;
 }
 
-.brand-indicator {
-  width: 4px;
-  height: 36px;
-  border-radius: 2px;
+.sheet-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
   flex-shrink: 0;
-  margin-top: 2px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 5px;
+}
+
+.sheet-logo.has-icon {
+  padding: 0;
+  border: none;
+}
+
+.sheet-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sheet-logo.has-icon img {
+  object-fit: cover;
+}
+
+.logo-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  font-weight: 700;
 }
 
 .restaurant-name {

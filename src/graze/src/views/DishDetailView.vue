@@ -22,9 +22,24 @@ const brandColor = computed(() => {
   return configStore.getRestaurantColor(dish.value.restaurant?.slug) || '#06C167'
 })
 
+const restaurantLogoUrl = computed(() => {
+  if (!dish.value) return null
+  return configStore.getRestaurantIcon(dish.value.restaurant?.slug) || dish.value.restaurant?.logo_url
+})
+
 const isFavorite = computed(() => {
   if (!dish.value) return false
   return favoritesStore.isFavorite(dish.value.id)
+})
+
+const hasExtendedNutrition = computed(() => {
+  if (!dish.value) return false
+  return dish.value.fiber !== null || dish.value.sodium !== null || dish.value.sugar !== null || dish.value.saturated_fat !== null
+})
+
+const hasDietaryInfo = computed(() => {
+  if (!dish.value) return false
+  return dish.value.is_vegetarian || dish.value.is_vegan || dish.value.is_gluten_free
 })
 
 onMounted(async () => {
@@ -66,163 +81,176 @@ function retry() {
     <ErrorState v-else-if="error" :error="error" @retry="retry" />
 
     <!-- Content -->
-    <div v-else-if="dish" class="detail-content">
-      <!-- Top bar -->
-      <div class="top-bar">
-        <button class="back-btn" @click="goBack">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+    <template v-else-if="dish">
+      <!-- Hero area -->
+      <div class="hero" :class="{ 'hero-no-image': !dish.image_url }">
+        <!-- Floating nav buttons -->
+        <div class="floating-nav">
+          <button class="nav-btn back-btn" @click="goBack" aria-label="Go back">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <button
+            class="nav-btn fav-btn"
+            :class="{ 'is-faved': isFavorite }"
+            @click="toggleFavorite"
+            aria-label="Toggle favorite"
+          >
+            <svg viewBox="0 0 24 24" class="heart-icon">
+              <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
+            </svg>
+          </button>
+        </div>
+
+        <!-- Photo -->
+        <img v-if="dish.image_url" :src="dish.image_url" :alt="dish.name" class="hero-img" />
+        <div v-else class="hero-placeholder" :style="{ background: `linear-gradient(135deg, ${brandColor}18, ${brandColor}08)` }">
+          <svg class="placeholder-icon" viewBox="0 0 24 24" fill="none" :stroke="brandColor" stroke-width="1.2" opacity="0.4">
+            <path stroke-linecap="round" d="M3 12h18" />
+            <path stroke-linecap="round" d="M5 12c0 3.866 3.134 7 7 7s7-3.134 7-7" />
+            <path stroke-linecap="round" d="M9 12V8" />
+            <path stroke-linecap="round" d="M12 12V6" />
+            <path stroke-linecap="round" d="M15 12V8" />
           </svg>
-        </button>
-        <button class="fav-btn" :class="{ active: isFavorite }" @click="toggleFavorite">
-          <svg v-if="!isFavorite" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M21 8.25c0-2.485-2.099-4.5-4.688-4.5-1.935 0-3.597 1.126-4.312 2.733-.715-1.607-2.377-2.733-4.313-2.733C5.1 3.75 3 5.765 3 8.25c0 7.22 9 12 9 12s9-4.78 9-12z" />
-          </svg>
-          <svg v-else viewBox="0 0 24 24" fill="currentColor">
-            <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
-          </svg>
-        </button>
-      </div>
-
-      <!-- Food photo banner -->
-      <div v-if="dish.image_url" class="dish-photo-banner">
-        <img :src="dish.image_url" :alt="dish.name" class="dish-photo" />
-      </div>
-
-      <!-- Header -->
-      <div class="dish-header">
-        <div class="header-row">
-          <div v-if="dish.restaurant.logo_url" class="restaurant-logo">
-            <LazyImage
-              :src="dish.restaurant.logo_url"
-              :alt="dish.restaurant.name"
-            />
-          </div>
-          <div class="brand-dot" v-else :style="{ backgroundColor: brandColor }"></div>
-          <div>
-            <p class="restaurant-name">{{ dish.restaurant.name }}</p>
-            <h1 class="dish-title">{{ dish.name }}</h1>
-            <p v-if="dish.serving_size" class="serving-size">
-              Serving: {{ dish.serving_size }}
-            </p>
-          </div>
         </div>
       </div>
 
-      <!-- Core macros -->
-      <div class="section">
-        <h2 class="section-title">Macros</h2>
-        <div class="macro-grid">
-          <div class="macro-card">
-            <svg class="macro-card-icon" viewBox="0 0 20 20" fill="var(--color-text-secondary)">
-              <path d="M12.186 8.672L18.743.947l-2.048 5.732 3.421 2.068-6.326 7.304 1.898-5.596z" />
+      <!-- Main content -->
+      <div class="content">
+        <!-- Header -->
+        <div class="dish-header">
+          <RouterLink
+            :to="{ name: 'restaurant-detail', params: { slug: dish.restaurant.slug } }"
+            class="restaurant-link"
+          >
+            <div v-if="restaurantLogoUrl" class="restaurant-logo" :class="{ 'has-icon': configStore.getRestaurantIcon(dish.restaurant.slug) }">
+              <img :src="restaurantLogoUrl" :alt="dish.restaurant.name" />
+            </div>
+            <div v-else class="restaurant-dot" :style="{ backgroundColor: brandColor }"></div>
+            <span class="restaurant-name">{{ dish.restaurant.name }}</span>
+            <svg class="chevron" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
             </svg>
-            <p class="macro-value">{{ dish.calories }}</p>
-            <p class="macro-label">Calories</p>
+          </RouterLink>
+          <h1 class="dish-name">{{ dish.name }}</h1>
+          <p v-if="dish.serving_size" class="serving-size">{{ dish.serving_size }} serving</p>
+        </div>
+
+        <!-- Calorie hero -->
+        <div class="calorie-hero">
+          <span class="cal-number">{{ dish.calories }}</span>
+          <span class="cal-unit">cal</span>
+        </div>
+
+        <!-- Macro rings -->
+        <div class="macro-row">
+          <div class="macro-item">
+            <div class="macro-ring" :style="{ '--ring-color': 'var(--color-primary)' }">
+              <span class="macro-val">{{ dish.protein }}g</span>
+            </div>
+            <span class="macro-label">Protein</span>
           </div>
-          <div class="macro-card protein-card">
-            <svg class="macro-card-icon" viewBox="0 0 20 20" fill="var(--color-primary)">
-              <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-11.25a.75.75 0 00-1.5 0v2.5h-2.5a.75.75 0 000 1.5h2.5v2.5a.75.75 0 001.5 0v-2.5h2.5a.75.75 0 000-1.5h-2.5v-2.5z" clip-rule="evenodd" />
-            </svg>
-            <p class="macro-value text-success">{{ dish.protein }}g</p>
-            <p class="macro-label">Protein</p>
+          <div class="macro-item">
+            <div class="macro-ring" :style="{ '--ring-color': 'var(--color-warning)' }">
+              <span class="macro-val">{{ dish.carbs }}g</span>
+            </div>
+            <span class="macro-label">Carbs</span>
           </div>
-          <div class="macro-card">
-            <svg class="macro-card-icon" viewBox="0 0 20 20" fill="var(--color-warning)">
-              <path d="M10 2a.75.75 0 01.75.75v.258a33.186 33.186 0 016.668.83.75.75 0 01-.336 1.461 31.28 31.28 0 00-1.103-.232l1.702 7.545a.75.75 0 01-.387.832A4.981 4.981 0 0114 14c-.09 0-.18-.003-.269-.008l-.15-.007A4.98 4.98 0 0110.75 12.6V16.5h2.5a.75.75 0 010 1.5h-6.5a.75.75 0 010-1.5h2.5v-3.9a4.98 4.98 0 01-3.081 1.385l-.15.007A5.001 5.001 0 012.354 12.7a.75.75 0 01-.388-.832l1.703-7.545a31.28 31.28 0 00-1.103.232.75.75 0 11-.336-1.462 33.186 33.186 0 016.668-.829V2.75A.75.75 0 0110 2z" />
-            </svg>
-            <p class="macro-value">{{ dish.carbs }}g</p>
-            <p class="macro-label">Carbs</p>
-          </div>
-          <div class="macro-card">
-            <svg class="macro-card-icon" viewBox="0 0 20 20" fill="var(--color-text-tertiary)">
-              <path d="M10 2c.076 0 .152.01.225.03l.002.001 5.253 1.5A.75.75 0 0116 4.28v6.97a4.75 4.75 0 01-2.734 4.306l-2.988 1.422a.75.75 0 01-.647 0l-2.988-1.422A4.75 4.75 0 014 11.25V4.28a.75.75 0 01.52-.749l5.253-1.5.002-.001A.753.753 0 0110 2z" />
-            </svg>
-            <p class="macro-value">{{ dish.fat }}g</p>
-            <p class="macro-label">Fat</p>
+          <div class="macro-item">
+            <div class="macro-ring" :style="{ '--ring-color': 'var(--color-text-tertiary)' }">
+              <span class="macro-val">{{ dish.fat }}g</span>
+            </div>
+            <span class="macro-label">Fat</span>
           </div>
         </div>
-      </div>
 
-      <!-- Protein density -->
-      <div v-if="dish.protein_per_100cal" class="section">
-        <div class="density-bar">
-          <div class="density-info">
-            <span class="density-label">Protein Density</span>
-            <span class="density-value text-success">{{ dish.protein_per_100cal }}g per 100 cal</span>
-          </div>
-          <span class="density-badge" :class="dish.density_label">{{ dish.density_label }}</span>
-        </div>
-      </div>
-
-      <!-- Extended nutrition -->
-      <div v-if="dish.fiber || dish.sodium || dish.sugar || dish.saturated_fat" class="section">
-        <h2 class="section-title">Additional Nutrition</h2>
-        <div class="nutrition-list">
-          <div v-if="dish.fiber !== null" class="nutrition-row">
-            <span class="nutrition-name">Fiber</span>
-            <span class="nutrition-val">{{ dish.fiber }}g</span>
-          </div>
-          <div v-if="dish.sodium !== null" class="nutrition-row">
-            <span class="nutrition-name">Sodium</span>
-            <span class="nutrition-val">{{ dish.sodium }}mg</span>
-          </div>
-          <div v-if="dish.sugar !== null" class="nutrition-row">
-            <span class="nutrition-name">Sugar</span>
-            <span class="nutrition-val">{{ dish.sugar }}g</span>
-          </div>
-          <div v-if="dish.saturated_fat !== null" class="nutrition-row">
-            <span class="nutrition-name">Saturated Fat</span>
-            <span class="nutrition-val">{{ dish.saturated_fat }}g</span>
+        <!-- Protein density -->
+        <div v-if="dish.protein_per_100cal" class="density-section">
+          <div class="density-row">
+            <div class="density-left">
+              <span class="density-title">Protein Density</span>
+              <span class="density-stat">{{ dish.protein_per_100cal }}g per 100 cal</span>
+            </div>
+            <span class="density-badge" :class="dish.density_label">{{ dish.density_label }}</span>
           </div>
         </div>
-      </div>
 
-      <!-- Dietary info -->
-      <div v-if="dish.is_vegetarian || dish.is_vegan || dish.is_gluten_free" class="section">
-        <h2 class="section-title">Dietary Information</h2>
-        <div class="dietary-tags">
-          <span v-if="dish.is_vegetarian" class="dietary-tag">
-            <svg class="tag-icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" />
-            </svg>
+        <!-- Dietary tags -->
+        <div v-if="hasDietaryInfo" class="dietary-section">
+          <span v-if="dish.is_vegetarian" class="diet-pill">
+            <svg viewBox="0 0 16 16" fill="currentColor" class="pill-icon"><path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" /></svg>
             Vegetarian
           </span>
-          <span v-if="dish.is_vegan" class="dietary-tag">
-            <svg class="tag-icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" />
-            </svg>
+          <span v-if="dish.is_vegan" class="diet-pill">
+            <svg viewBox="0 0 16 16" fill="currentColor" class="pill-icon"><path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" /></svg>
             Vegan
           </span>
-          <span v-if="dish.is_gluten_free" class="dietary-tag">
-            <svg class="tag-icon" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" />
-            </svg>
+          <span v-if="dish.is_gluten_free" class="diet-pill">
+            <svg viewBox="0 0 16 16" fill="currentColor" class="pill-icon"><path d="M8 15A7 7 0 108 1a7 7 0 000 14zm3.844-8.791a.75.75 0 00-1.188-.918l-3.7 4.79-1.649-1.833a.75.75 0 10-1.114 1.004l2.25 2.5a.75.75 0 001.15-.043l4.25-5.5z" /></svg>
             Gluten-Free
           </span>
         </div>
-      </div>
 
-      <!-- Source -->
-      <div class="section source-section">
-        <span v-if="dish.last_verified" class="source-text">
-          Last verified: {{ new Date(dish.last_verified).toLocaleDateString() }}
-        </span>
-        <a
-          v-if="dish.source_url"
-          :href="dish.source_url"
-          target="_blank"
-          rel="noopener noreferrer"
-          class="source-link"
-        >
-          <svg class="source-icon" viewBox="0 0 16 16" fill="currentColor">
-            <path d="M6.354 5.5H4a3 3 0 000 6h3a3 3 0 002.83-4H9.874a2 2 0 01-1.874 3H5a2 2 0 110-4h1.354z" />
-            <path d="M9.646 10.5H12a3 3 0 000-6H9a3 3 0 00-2.83 4h.996a2 2 0 011.874-3H11a2 2 0 110 4H9.646z" />
-          </svg>
-          View source
-        </a>
+        <!-- Nutrition details table -->
+        <div v-if="hasExtendedNutrition" class="nutrition-section">
+          <h2 class="section-heading">Nutrition Facts</h2>
+          <div class="nutrition-table">
+            <div class="nut-row thick">
+              <span>Calories</span>
+              <span>{{ dish.calories }}</span>
+            </div>
+            <div class="nut-row thick">
+              <span>Protein</span>
+              <span>{{ dish.protein }}g</span>
+            </div>
+            <div class="nut-row thick">
+              <span>Total Carbs</span>
+              <span>{{ dish.carbs }}g</span>
+            </div>
+            <div v-if="dish.fiber !== null" class="nut-row indent">
+              <span>Fiber</span>
+              <span>{{ dish.fiber }}g</span>
+            </div>
+            <div v-if="dish.sugar !== null" class="nut-row indent">
+              <span>Sugar</span>
+              <span>{{ dish.sugar }}g</span>
+            </div>
+            <div class="nut-row thick">
+              <span>Total Fat</span>
+              <span>{{ dish.fat }}g</span>
+            </div>
+            <div v-if="dish.saturated_fat !== null" class="nut-row indent">
+              <span>Saturated Fat</span>
+              <span>{{ dish.saturated_fat }}g</span>
+            </div>
+            <div v-if="dish.sodium !== null" class="nut-row thick">
+              <span>Sodium</span>
+              <span>{{ dish.sodium }}mg</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Source footer -->
+        <div class="source-footer">
+          <span v-if="dish.last_verified" class="source-date">
+            Verified {{ new Date(dish.last_verified).toLocaleDateString() }}
+          </span>
+          <a
+            v-if="dish.source_url"
+            :href="dish.source_url"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="source-link"
+          >
+            View source
+            <svg viewBox="0 0 16 16" fill="currentColor" class="source-arrow">
+              <path fill-rule="evenodd" d="M4.22 11.78a.75.75 0 010-1.06L9.44 5.5H5.75a.75.75 0 010-1.5h5.5a.75.75 0 01.75.75v5.5a.75.75 0 01-1.5 0V6.56l-5.22 5.22a.75.75 0 01-1.06 0z" clip-rule="evenodd" />
+            </svg>
+          </a>
+        </div>
       </div>
-    </div>
+    </template>
   </div>
 </template>
 
@@ -230,224 +258,301 @@ function retry() {
 .detail-view {
   max-width: 640px;
   margin: 0 auto;
-  padding: 0 16px 24px;
+  padding-bottom: 80px;
 }
 
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 0;
-}
-
-.back-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface-elevated);
-  color: var(--color-text-primary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: all 150ms ease;
-}
-
-.back-btn:hover {
-  border-color: var(--color-border-hover);
-  background-color: var(--color-surface);
-}
-
-.back-btn svg {
-  width: 18px;
-  height: 18px;
-}
-
-.fav-btn {
-  width: 36px;
-  height: 36px;
-  border-radius: 50%;
-  border: 1px solid var(--color-border);
-  background-color: var(--color-surface-elevated);
-  color: var(--color-text-tertiary);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: all 150ms ease;
-}
-
-.fav-btn:hover {
-  color: var(--color-error);
-  border-color: var(--color-error);
-}
-
-.fav-btn.active {
-  color: var(--color-error);
-  border-color: var(--color-error);
-  background-color: #fef2f2;
-}
-
-.fav-btn svg {
-  width: 20px;
-  height: 20px;
-}
-
-.detail-content {
-  background-color: var(--color-surface-elevated);
-  border-radius: 16px;
-  border: 1px solid var(--color-border);
-  overflow: hidden;
-}
-
-.dish-photo-banner {
+/* ---- Hero ---- */
+.hero {
+  position: relative;
   width: 100%;
-  height: 200px;
+  height: 280px;
   overflow: hidden;
   background-color: var(--color-surface);
 }
 
-.dish-photo {
+.hero-no-image {
+  height: 160px;
+}
+
+.hero-img {
   width: 100%;
   height: 100%;
   object-fit: cover;
 }
 
-.dish-header {
-  padding: 20px;
-  border-bottom: 1px solid var(--color-border);
+.hero-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.header-row {
+.placeholder-icon {
+  width: 48px;
+  height: 48px;
+}
+
+.floating-nav {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  right: 12px;
   display: flex;
-  align-items: flex-start;
-  gap: 14px;
+  justify-content: space-between;
+  z-index: 10;
+}
+
+.nav-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: transform 150ms ease, box-shadow 150ms ease;
+}
+
+.nav-btn:active {
+  transform: scale(0.9);
+}
+
+.nav-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* Back button — dark pill, white icon */
+.back-btn {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.back-btn:hover {
+  background: rgba(0, 0, 0, 0.7);
+}
+
+/* Favorite button — translucent bg, heart always rendered */
+.fav-btn {
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+.heart-icon {
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  transition: fill 200ms ease, stroke 200ms ease, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.fav-btn:hover .heart-icon {
+  stroke: #ff4d6a;
+}
+
+.is-faved .heart-icon {
+  fill: #ff4d6a;
+  stroke: #ff4d6a;
+  transform: scale(1.1);
+}
+
+/* Pop keyframe for the heart on toggle */
+@keyframes heart-pop {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.3); }
+  60% { transform: scale(0.95); }
+  100% { transform: scale(1.1); }
+}
+
+.is-faved .heart-icon {
+  animation: heart-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---- Content ---- */
+.content {
+  padding: 0 20px;
+}
+
+/* ---- Header ---- */
+.dish-header {
+  padding: 20px 0 16px;
+}
+
+.restaurant-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-decoration: none;
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  transition: color 150ms ease;
+}
+
+.restaurant-link:hover {
+  color: var(--color-text-primary);
 }
 
 .restaurant-logo {
-  width: 52px;
-  height: 52px;
+  width: 24px;
+  height: 24px;
   flex-shrink: 0;
-  border-radius: 12px;
+  border-radius: 6px;
   overflow: hidden;
   background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
+  padding: 3px;
 }
 
-.brand-dot {
-  width: 12px;
-  height: 12px;
+.restaurant-logo img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.restaurant-logo.has-icon {
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.restaurant-logo.has-icon img {
+  object-fit: cover;
+}
+
+.restaurant-dot {
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
   flex-shrink: 0;
-  margin-top: 6px;
 }
 
 .restaurant-name {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-tertiary);
-  text-transform: uppercase;
-  letter-spacing: 0.3px;
-  margin-bottom: 2px;
+  line-height: 1;
 }
 
-.dish-title {
-  font-size: 24px;
-  font-weight: 700;
+.chevron {
+  width: 16px;
+  height: 16px;
+  opacity: 0.5;
+}
+
+.dish-name {
+  font-size: 28px;
+  font-weight: 800;
   color: var(--color-text-primary);
-  line-height: 1.2;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
 }
 
 .serving-size {
-  font-size: 13px;
-  color: var(--color-text-secondary);
-  margin-top: 4px;
+  font-size: 14px;
+  color: var(--color-text-tertiary);
+  margin-top: 6px;
 }
 
-.section {
-  padding: 20px;
-  border-bottom: 1px solid var(--color-border);
+/* ---- Calorie hero ---- */
+.calorie-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
 }
 
-.section:last-child {
-  border-bottom: none;
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
+.cal-number {
+  font-size: 48px;
+  font-weight: 800;
   color: var(--color-text-primary);
-  margin-bottom: 12px;
+  line-height: 1;
+  letter-spacing: -0.03em;
 }
 
-.macro-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
+.cal-unit {
+  font-size: 18px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
 }
 
-@media (max-width: 480px) {
-  .macro-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* ---- Macro rings ---- */
+.macro-row {
+  display: flex;
+  gap: 16px;
+  padding: 8px 0 24px;
 }
 
-.macro-card {
-  background-color: var(--color-surface);
-  border-radius: 12px;
-  padding: 14px 12px;
-  text-align: center;
+.macro-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
 }
 
-.macro-card-icon {
-  width: 18px;
-  height: 18px;
-  margin: 0 auto 6px;
+.macro-ring {
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  border: 3px solid var(--ring-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
 }
 
-.macro-value {
-  font-size: 22px;
+.macro-val {
+  font-size: 18px;
   font-weight: 700;
   color: var(--color-text-primary);
 }
 
 .macro-label {
-  font-size: 12px;
+  font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-secondary);
-  margin-top: 2px;
 }
 
-.density-bar {
+/* ---- Density ---- */
+.density-section {
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.density-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
 }
 
-.density-info {
+.density-left {
   display: flex;
   flex-direction: column;
   gap: 2px;
 }
 
-.density-label {
-  font-size: 14px;
+.density-title {
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
-.density-value {
-  font-size: 13px;
+.density-stat {
+  font-size: 14px;
   font-weight: 500;
+  color: var(--color-primary);
 }
 
 .density-badge {
-  padding: 4px 12px;
-  border-radius: 12px;
-  font-size: 12px;
+  padding: 5px 14px;
+  border-radius: 20px;
+  font-size: 13px;
   font-weight: 600;
   text-transform: capitalize;
 }
@@ -472,73 +577,99 @@ function retry() {
   color: var(--color-text-tertiary);
 }
 
-.nutrition-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.nutrition-row {
-  display: flex;
-  justify-content: space-between;
-  padding: 8px 0;
-  border-bottom: 1px solid var(--color-border);
-}
-
-.nutrition-row:last-child {
-  border-bottom: none;
-}
-
-.nutrition-name {
-  font-size: 14px;
-  color: var(--color-text-secondary);
-}
-
-.nutrition-val {
-  font-size: 14px;
-  font-weight: 600;
-  color: var(--color-text-primary);
-}
-
-.dietary-tags {
+/* ---- Dietary pills ---- */
+.dietary-section {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
 }
 
-.dietary-tag {
-  display: flex;
+.diet-pill {
+  display: inline-flex;
   align-items: center;
   gap: 5px;
-  padding: 6px 12px;
+  padding: 6px 14px;
   border-radius: 20px;
   background-color: var(--color-primary-light);
   color: var(--color-primary);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
 }
 
-.tag-icon {
+.pill-icon {
   width: 14px;
   height: 14px;
 }
 
-.source-section {
+/* ---- Nutrition table ---- */
+.nutrition-section {
+  padding: 20px 0;
+  border-top: 1px solid var(--color-border);
+}
+
+.section-heading {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 12px;
+}
+
+.nutrition-table {
+  border-top: 8px solid var(--color-text-primary);
+}
+
+.nut-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 14px;
+  color: var(--color-text-secondary);
+}
+
+.nut-row span:last-child {
+  font-weight: 500;
+  color: var(--color-text-primary);
+}
+
+.nut-row.thick {
+  font-weight: 600;
+  color: var(--color-text-primary);
+  border-bottom-width: 2px;
+}
+
+.nut-row.thick span:last-child {
+  font-weight: 700;
+}
+
+.nut-row.indent span:first-child {
+  padding-left: 20px;
+  font-weight: 400;
+  color: var(--color-text-secondary);
+}
+
+/* ---- Source footer ---- */
+.source-footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 20px 0;
+  border-top: 1px solid var(--color-border);
 }
 
-.source-text {
+.source-date {
   font-size: 13px;
   color: var(--color-text-tertiary);
 }
 
 .source-link {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 4px;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
   color: var(--color-primary);
   text-decoration: none;
 }
@@ -547,8 +678,24 @@ function retry() {
   text-decoration: underline;
 }
 
-.source-icon {
+.source-arrow {
   width: 14px;
   height: 14px;
+}
+
+/* ---- Dark mode adjustments ---- */
+:root[data-theme='dark'] .density-badge.excellent {
+  background-color: #052e16;
+  color: #4ade80;
+}
+
+:root[data-theme='dark'] .density-badge.good {
+  background-color: #422006;
+  color: #fbbf24;
+}
+
+:root[data-theme='dark'] .density-badge.average {
+  background-color: #431407;
+  color: #fb923c;
 }
 </style>

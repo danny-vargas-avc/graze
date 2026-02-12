@@ -98,7 +98,14 @@ const FALLBACK_CONFIG = {
     'sweetgreen': '#6DBF4B',
     'panera': '#5C8B3E',
     'chick-fil-a': '#E51937',
+    'in-n-out': '#DA291C',
     'default': '#3B82F6'
+  },
+  restaurant_icons: {
+    'cava': '/logos/cava-icon.jpeg',
+    'chick-fil-a': '/logos/chick-fil-a-icon.png',
+    'panera': '/logos/panera-icon.jpeg',
+    'sweetgreen': '/logos/sweetgreen-icon.svg',
   },
   version: 1
 }
@@ -110,6 +117,7 @@ export const useConfigStore = defineStore('config', {
     sortOptions: [],
     appSettings: null,
     restaurantColors: {},
+    restaurantIcons: {},
     version: null,
     loading: false,
     error: null,
@@ -131,6 +139,14 @@ export const useConfigStore = defineStore('config', {
      */
     getRestaurantColor: (state) => (slug) => {
       return state.restaurantColors[slug] || state.restaurantColors.default || '#3B82F6'
+    },
+
+    /**
+     * Get square icon URL for a restaurant (for small thumbnail contexts).
+     * Returns null if no dedicated icon — caller should fall back to logo_url.
+     */
+    getRestaurantIcon: (state) => (slug) => {
+      return state.restaurantIcons[slug] || null
     },
 
     /**
@@ -202,6 +218,7 @@ export const useConfigStore = defineStore('config', {
         this.sortOptions = data.sort_options || []
         this.appSettings = data.app_settings || {}
         this.restaurantColors = data.restaurant_colors || {}
+        this.restaurantIcons = data.restaurant_icons || FALLBACK_CONFIG.restaurant_icons
         this.version = data.version || 1
         this.lastFetched = Date.now()
 
@@ -234,6 +251,7 @@ export const useConfigStore = defineStore('config', {
           sortOptions: this.sortOptions,
           appSettings: this.appSettings,
           restaurantColors: this.restaurantColors,
+          restaurantIcons: this.restaurantIcons,
           version: this.version,
           lastFetched: this.lastFetched,
         }
@@ -272,6 +290,7 @@ export const useConfigStore = defineStore('config', {
         this.sortOptions = data.sortOptions
         this.appSettings = data.appSettings
         this.restaurantColors = data.restaurantColors
+        this.restaurantIcons = data.restaurantIcons || FALLBACK_CONFIG.restaurant_icons
         this.version = data.version
         this.lastFetched = data.lastFetched
 
@@ -299,6 +318,7 @@ export const useConfigStore = defineStore('config', {
       this.sortOptions = FALLBACK_CONFIG.sort_options
       this.appSettings = FALLBACK_CONFIG.app_settings
       this.restaurantColors = FALLBACK_CONFIG.restaurant_colors
+      this.restaurantIcons = FALLBACK_CONFIG.restaurant_icons
       this.version = FALLBACK_CONFIG.version
       this.usingFallback = true
       console.log('Using fallback configuration')
