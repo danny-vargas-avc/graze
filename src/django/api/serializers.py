@@ -21,7 +21,7 @@ class MenuItemListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'restaurant', 'category', 'serving_size', 'calories', 'protein', 'carbs', 'fat', 'protein_per_100cal', 'density_label']
+        fields = ['id', 'name', 'restaurant', 'category', 'serving_size', 'calories', 'protein', 'carbs', 'fat', 'protein_per_100cal', 'density_label', 'image_url']
 
 
 class MenuItemDetailSerializer(serializers.ModelSerializer):
@@ -31,7 +31,7 @@ class MenuItemDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MenuItem
-        fields = ['id', 'name', 'restaurant', 'category', 'serving_size', 'calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium', 'sugar', 'saturated_fat', 'protein_per_100cal', 'density_label', 'is_vegetarian', 'is_vegan', 'is_gluten_free', 'source_url', 'last_verified']
+        fields = ['id', 'name', 'restaurant', 'category', 'serving_size', 'calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium', 'sugar', 'saturated_fat', 'protein_per_100cal', 'density_label', 'image_url', 'is_vegetarian', 'is_vegan', 'is_gluten_free', 'source_url', 'last_verified']
 
 
 class DataFlagSerializer(serializers.ModelSerializer):

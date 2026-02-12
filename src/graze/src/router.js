@@ -1,6 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import LandingView from './views/LandingView.vue'
-import SearchView from './views/SearchView.vue'
 
 const routes = [
   {
@@ -14,9 +13,24 @@ const routes = [
     component: () => import('./views/LoadingView.vue'),
   },
   {
-    path: '/search',
-    name: 'search',
-    component: SearchView,
+    path: '/home',
+    name: 'home',
+    component: () => import('./views/HomeView.vue'),
+  },
+  {
+    path: '/map',
+    name: 'map-explore',
+    component: () => import('./views/MapExploreView.vue'),
+  },
+  {
+    path: '/favorites',
+    name: 'favorites',
+    component: () => import('./views/FavoritesView.vue'),
+  },
+  {
+    path: '/profile',
+    name: 'profile',
+    component: () => import('./views/ProfileView.vue'),
   },
   {
     path: '/dish/:id',
@@ -28,10 +42,10 @@ const routes = [
     name: 'restaurant-detail',
     component: () => import('./views/RestaurantView.vue'),
   },
+  // Redirect old routes
   {
-    path: '/map-test',
-    name: 'map-test',
-    component: () => import('./views/MapTestView.vue'),
+    path: '/search',
+    redirect: '/home',
   },
 ]
 

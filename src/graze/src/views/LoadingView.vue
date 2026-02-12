@@ -559,7 +559,7 @@ function buildTimeline() {
 function checkReady() {
   if (animationComplete.value && dataReady.value) {
     transitionStore.clear()
-    router.replace('/search')
+    router.replace('/home')
   }
 }
 

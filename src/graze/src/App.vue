@@ -2,7 +2,7 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
-import AppFooter from './components/AppFooter.vue'
+import BottomNav from './components/BottomNav.vue'
 import { useTransitionStore } from './stores/transition'
 import { useConfigStore } from './stores/config'
 
@@ -13,19 +13,16 @@ const isFullscreen = computed(() => route.name === 'landing' || route.name === '
 
 let versionCheckInterval = null
 
-// Initialize configuration on app startup
 onMounted(async () => {
-  // Fetch config (non-blocking - uses cache/fallback if API fails)
   await configStore.fetchConfig()
 
-  // Check for config version updates every hour
   versionCheckInterval = setInterval(async () => {
     const hasUpdate = await configStore.checkForUpdates()
     if (hasUpdate) {
       console.log('Config update detected - refreshing configuration')
       await configStore.invalidateCache()
     }
-  }, 60 * 60 * 1000) // 1 hour
+  }, 60 * 60 * 1000)
 })
 
 onUnmounted(() => {
@@ -47,14 +44,18 @@ onUnmounted(() => {
     <!-- Fullscreen pages (landing, loading) render standalone -->
     <router-view v-if="isFullscreen" />
 
-    <!-- Other pages get header/footer wrapper -->
+    <!-- App pages get header + bottom nav wrapper -->
     <div v-else class="app-wrapper">
       <a href="#main-content" class="skip-link">Skip to main content</a>
       <AppHeader />
       <main id="main-content" class="app-main" tabindex="-1">
-        <router-view />
+        <router-view v-slot="{ Component }">
+          <transition name="fade" mode="out-in">
+            <component :is="Component" />
+          </transition>
+        </router-view>
       </main>
-      <!-- <AppFooter /> -->
+      <BottomNav />
     </div>
   </div>
 </template>
@@ -96,14 +97,33 @@ onUnmounted(() => {
   height: 100vh;
   width: 100vw;
   overflow: hidden;
-  background-color: var(--color-surface);
+  background-color: var(--color-background);
   position: relative;
 }
 
 .app-main {
   flex: 1;
-  overflow: hidden;
+  overflow-y: auto;
+  overflow-x: hidden;
   min-height: 0;
+}
+
+/* Page transitions */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 150ms ease;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}
+
+/* Mobile: account for bottom nav */
+@media (max-width: 768px) {
+  .app-main {
+    padding-bottom: calc(60px + env(safe-area-inset-bottom));
+  }
 }
 
 .app-main:focus {

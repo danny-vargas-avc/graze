@@ -55,6 +55,12 @@ class DishListView(APIView):
                 except (ValueError, InvalidOperation):
                     raise ValidationError({param: f'{param} must be a valid number'})
 
+        # Category filter
+        category = request.query_params.get('category', '').strip()
+        if category:
+            queryset = queryset.filter(category__icontains=category)
+            filters_applied['category'] = category
+
         # Restaurant filter
         restaurants = request.query_params.get('restaurants', '').strip()
         if restaurants:

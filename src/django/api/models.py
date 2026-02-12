@@ -56,6 +56,8 @@ class MenuItem(models.Model):
     is_vegan = models.BooleanField(default=False)
     is_gluten_free = models.BooleanField(default=False)
 
+    image_url = models.URLField(blank=True, help_text='URL to food photo thumbnail')
+
     is_available = models.BooleanField(default=True)
     source_url = models.URLField(blank=True)
     last_verified = models.DateTimeField(null=True, blank=True)

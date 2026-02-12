@@ -4,31 +4,28 @@
 
 @layer base {
   :root {
-    /* Light mode colors - Reddit style */
+    /* Light mode — Uber Eats-inspired green/black/white */
     --color-background: #ffffff;
     --color-surface: #f6f7f8;
     --color-surface-elevated: #ffffff;
-    --color-border: #ccc;
-    --color-border-hover: #898989;
+    --color-border: #e5e7eb;
+    --color-border-hover: #d1d5db;
 
     --color-text-primary: #1c1c1c;
-    --color-text-secondary: #7c7c7c;
-    --color-text-tertiary: #a8a8a8;
+    --color-text-secondary: #6b7280;
+    --color-text-tertiary: #9ca3af;
 
-    --color-primary: #ff4500;
-    --color-primary-hover: #cc3700;
-    --color-primary-light: #ffe6d9;
+    --color-primary: #06C167;
+    --color-primary-hover: #05a85a;
+    --color-primary-light: #e6f9ef;
 
-    --color-accent: #0079d3;
-    --color-accent-hover: #0060a8;
-    --color-accent-light: #cce4f6;
+    --color-accent: #000000;
+    --color-accent-hover: #333333;
+    --color-accent-light: #f3f4f6;
 
-    --color-clickable: #a0774a;
-    --color-clickable-hover: #8b6f47;
-
-    --color-success: #46d160;
+    --color-success: #06C167;
     --color-warning: #f59e0b;
-    --color-error: #ea0027;
+    --color-error: #ef4444;
 
     --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
     --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
@@ -37,36 +34,32 @@
   }
 
   .dark {
-    /* Dark mode colors - Reddit style */
-    --color-background: #030303;
+    --color-background: #0a0a0a;
     --color-surface: #1a1a1b;
-    --color-surface-elevated: #272729;
-    --color-border: #343536;
-    --color-border-hover: #474748;
+    --color-surface-elevated: #242424;
+    --color-border: #2d2d2e;
+    --color-border-hover: #3d3d3e;
 
-    --color-text-primary: #d7dadc;
-    --color-text-secondary: #818384;
-    --color-text-tertiary: #6a6b6c;
+    --color-text-primary: #e5e7eb;
+    --color-text-secondary: #9ca3af;
+    --color-text-tertiary: #6b7280;
 
-    --color-primary: #330e00;
-    --color-primary-hover: #ff5722;
-    --color-primary-light: #4d1a00;
+    --color-primary: #06C167;
+    --color-primary-hover: #07d672;
+    --color-primary-light: #0d2818;
 
-    --color-accent: #764f00;
-    --color-accent-hover: #1c90db;
-    --color-accent-light: #002a45;
+    --color-accent: #e5e7eb;
+    --color-accent-hover: #f3f4f6;
+    --color-accent-light: #1f2937;
 
-    --color-clickable: #c9a777;
-    --color-clickable-hover: #b8956a;
-
-    --color-success: #46d160;
+    --color-success: #06C167;
     --color-warning: #fbbf24;
-    --color-error: #ea0027;
+    --color-error: #ef4444;
 
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.6);
-    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.7), 0 1px 2px -1px rgba(0, 0, 0, 0.7);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.7), 0 2px 4px -2px rgba(0, 0, 0, 0.7);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.8), 0 4px 6px -4px rgba(0, 0, 0, 0.8);
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+    --shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.5), 0 1px 2px -1px rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -2px rgba(0, 0, 0, 0.5);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6), 0 4px 6px -4px rgba(0, 0, 0, 0.6);
   }
 
   * {
@@ -155,12 +148,20 @@
     color: var(--color-text-tertiary);
   }
 
-  .text-clickable {
-    color: var(--color-clickable);
+  .text-graze-green {
+    color: var(--color-primary);
   }
 
-  .text-clickable-hover:hover {
-    color: var(--color-clickable-hover);
+  .text-success {
+    color: var(--color-success);
+  }
+
+  .text-warning {
+    color: var(--color-warning);
+  }
+
+  .text-error {
+    color: var(--color-error);
   }
 
   .border-border {
@@ -178,36 +179,21 @@
   .shadow-custom-lg {
     box-shadow: var(--shadow-lg);
   }
-
-  /* Gradient utilities */
-  .gradient-primary {
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-accent) 100%);
-  }
-
-  /* Clickable text/icons - solid brown */
-  .text-gradient-primary {
-    color: var(--color-clickable);
-  }
-
-  .text-gradient-primary:hover {
-    color: var(--color-clickable-hover);
-  }
 }
 
 /* Custom scrollbar */
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 8px;
+  height: 8px;
 }
 
 ::-webkit-scrollbar-track {
-  background: var(--color-surface);
+  background: transparent;
 }
 
 ::-webkit-scrollbar-thumb {
   background: var(--color-border-hover);
-  border-radius: 6px;
-  border: 2px solid var(--color-surface);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
@@ -217,5 +203,14 @@
 /* Firefox scrollbar */
 * {
   scrollbar-width: thin;
-  scrollbar-color: var(--color-border-hover) var(--color-surface);
+  scrollbar-color: var(--color-border-hover) transparent;
+}
+
+/* Hide scrollbar on horizontal carousels */
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
 }
