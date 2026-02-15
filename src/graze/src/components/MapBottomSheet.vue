@@ -151,10 +151,10 @@ onMounted(() => {
 
 .sheet {
   width: 100%;
-  max-height: 70vh;
+  max-height: 60dvh;
   background-color: var(--color-surface-elevated);
   border-radius: 16px 16px 0 0;
-  padding: 0 16px 16px;
+  padding: 0 16px calc(72px + env(safe-area-inset-bottom));
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
   animation: slideUp 250ms ease-out;
   overflow-y: auto;
