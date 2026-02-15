@@ -21,6 +21,8 @@ source venv/bin/activate
 
 # Install dependencies if needed
 if [ ! -f "venv/.installed" ]; then
+    echo "Upgrading pip..."
+    pip install --upgrade pip
     echo "Installing dependencies..."
     pip install -r requirements.txt
     touch venv/.installed

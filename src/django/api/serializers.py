@@ -11,9 +11,6 @@ class RestaurantListSerializer(serializers.ModelSerializer):
 
     def get_logo_url(self, obj):
         if obj.logo:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.logo.url)
             return obj.logo.url
         return obj.logo_url or ''
 
@@ -27,9 +24,6 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
 
     def get_logo_url(self, obj):
         if obj.logo:
-            request = self.context.get('request')
-            if request:
-                return request.build_absolute_uri(obj.logo.url)
             return obj.logo.url
         return obj.logo_url or ''
 

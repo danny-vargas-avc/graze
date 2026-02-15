@@ -52,7 +52,7 @@ def config_all(request):
         restaurant_colors['default'] = '#3B82F6'
 
         restaurant_icons = {
-            restaurant.slug: request.build_absolute_uri(restaurant.icon.url)
+            restaurant.slug: restaurant.icon.url
             for restaurant in restaurants
             if restaurant.icon
         }

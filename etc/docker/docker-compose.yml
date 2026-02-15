@@ -1,0 +1,49 @@
+services:
+  db:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    environment:
+      POSTGRES_DB: ${DB_NAME:-graze}
+      POSTGRES_USER: ${DB_USER:-graze}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-graze}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  web:
+    build:
+      context: ../..
+      dockerfile: etc/docker/Dockerfile
+      args:
+        VITE_API_URL: ""
+        VITE_MAPBOX_TOKEN: ${VITE_MAPBOX_TOKEN}
+    restart: unless-stopped
+    volumes:
+      - frontend_dist:/app/frontend-serve
+      - media_data:/app/media
+    env_file:
+      - .env.production
+    depends_on:
+      db:
+        condition: service_healthy
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - frontend_dist:/app/frontend:ro
+      - media_data:/app/media:ro
+    depends_on:
+      - web
+
+volumes:
+  postgres_data:
+  frontend_dist:
+  media_data:
