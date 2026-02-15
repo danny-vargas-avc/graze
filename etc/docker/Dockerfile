@@ -23,6 +23,7 @@ COPY src/django/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY src/django/ .
+RUN rm -f .env .env.local
 COPY --from=frontend-build /app/frontend/dist /app/frontend-dist
 
 COPY etc/docker/docker-entrypoint.sh /docker-entrypoint.sh
