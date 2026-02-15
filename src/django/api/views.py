@@ -75,9 +75,9 @@ class DishListView(APIView):
         filters_applied['sort'] = sort_param
 
         if sort_param == 'protein_ratio_desc':
-            queryset = queryset.annotate(
+            queryset = queryset.filter(calories__gt=0).annotate(
                 protein_per_100cal_sort=ExpressionWrapper(
-                    F('protein') * 100 / F('calories'),
+                    F('protein') * 100.0 / F('calories'),
                     output_field=DecimalField(max_digits=5, decimal_places=2)
                 )
             )
@@ -133,8 +133,8 @@ class StatsView(APIView):
         last_updated = MenuItem.objects.aggregate(last=Max('updated_at'))['last']
 
         top_protein = MenuItem.objects.filter(is_available=True).order_by('-protein').first()
-        best_ratio = MenuItem.objects.filter(is_available=True, calories__gte=200).annotate(
-            ratio=ExpressionWrapper(F('protein') * 100 / F('calories'), output_field=DecimalField(max_digits=5, decimal_places=2))
+        best_ratio = MenuItem.objects.filter(is_available=True, calories__gt=0, calories__gte=200).annotate(
+            ratio=ExpressionWrapper(F('protein') * 100.0 / F('calories'), output_field=DecimalField(max_digits=5, decimal_places=2))
         ).order_by('-ratio').first()
 
         return Response({
