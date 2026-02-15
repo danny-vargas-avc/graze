@@ -17,7 +17,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, watch, computed } from 'vue'
+import { ref, onMounted, onUnmounted, watch } from 'vue'
 import mapboxgl from 'mapbox-gl'
 import Supercluster from 'supercluster'
 import 'mapbox-gl/dist/mapbox-gl.css'
@@ -25,10 +25,13 @@ import { useConfigStore } from '../stores/config'
 
 const configStore = useConfigStore()
 
+const MARKER_SIZE = 64
+const MARKER_BORDER = 4
+
 const props = defineProps({
   center: {
     type: Array,
-    default: () => [-74.0060, 40.7128] // New York City [lng, lat]
+    default: () => [-74.0060, 40.7128]
   },
   zoom: {
     type: Number,
@@ -40,7 +43,7 @@ const props = defineProps({
   },
   userLocation: {
     type: Object,
-    default: null // { lat, lng }
+    default: null
   },
   highlightedRestaurantSlug: {
     type: String,
@@ -57,19 +60,129 @@ let map = null
 let clusterIndex = null
 let boundsChangeTimeout = null
 
-// Check for dark mode
+// Layer and source IDs
+const CLUSTER_LAYER = 'clusters'
+const CLUSTER_COUNT_LAYER = 'cluster-count'
+const MARKERS_LAYER = 'unclustered-points'
+const SOURCE_ID = 'locations'
+
 const updateDarkMode = () => {
   isDarkMode.value = document.documentElement.classList.contains('dark')
 }
 
-// Get map style based on theme
 const getMapStyle = () => {
   return isDarkMode.value
     ? 'mapbox://styles/mapbox/dark-v11'
     : 'mapbox://styles/mapbox/streets-v12'
 }
 
-// Initialize Supercluster
+// --- Marker Image Rendering ---
+
+// Create a canvas with a colored circle and white initial letter
+const createInitialMarker = (color, initial) => {
+  const canvas = document.createElement('canvas')
+  canvas.width = MARKER_SIZE
+  canvas.height = MARKER_SIZE
+  const ctx = canvas.getContext('2d')
+  const r = MARKER_SIZE / 2
+
+  // White border ring
+  ctx.beginPath()
+  ctx.arc(r, r, r, 0, Math.PI * 2)
+  ctx.fillStyle = '#ffffff'
+  ctx.fill()
+
+  // Colored inner circle
+  ctx.beginPath()
+  ctx.arc(r, r, r - MARKER_BORDER, 0, Math.PI * 2)
+  ctx.fillStyle = color
+  ctx.fill()
+
+  // Initial letter
+  ctx.fillStyle = '#ffffff'
+  ctx.font = `bold ${MARKER_SIZE * 0.4}px -apple-system, BlinkMacSystemFont, sans-serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(initial, r, r + 1)
+
+  const imageData = ctx.getImageData(0, 0, MARKER_SIZE, MARKER_SIZE)
+  return { data: new Uint8Array(imageData.data.buffer), width: MARKER_SIZE, height: MARKER_SIZE }
+}
+
+// Load an image URL and render it clipped to a circle with white border
+const createIconMarker = (url) => {
+  return new Promise((resolve) => {
+    const img = new Image()
+    img.crossOrigin = 'anonymous'
+    img.onload = () => {
+      const canvas = document.createElement('canvas')
+      canvas.width = MARKER_SIZE
+      canvas.height = MARKER_SIZE
+      const ctx = canvas.getContext('2d')
+      const r = MARKER_SIZE / 2
+      const inner = r - MARKER_BORDER
+
+      // White border ring
+      ctx.beginPath()
+      ctx.arc(r, r, r, 0, Math.PI * 2)
+      ctx.fillStyle = '#ffffff'
+      ctx.fill()
+
+      // Clip to inner circle and draw image
+      ctx.save()
+      ctx.beginPath()
+      ctx.arc(r, r, inner, 0, Math.PI * 2)
+      ctx.clip()
+      ctx.drawImage(img, MARKER_BORDER, MARKER_BORDER, inner * 2, inner * 2)
+      ctx.restore()
+
+      const imageData = ctx.getImageData(0, 0, MARKER_SIZE, MARKER_SIZE)
+      resolve({ data: new Uint8Array(imageData.data.buffer), width: MARKER_SIZE, height: MARKER_SIZE })
+    }
+    img.onerror = () => resolve(null)
+    img.src = url
+  })
+}
+
+// Load all restaurant marker images into the map style
+const loadMarkerImages = async () => {
+  if (!map) return
+
+  const icons = configStore.restaurantIcons || {}
+  const colors = configStore.restaurantColors || {}
+
+  // Collect all slugs we need markers for
+  const slugs = new Set([...Object.keys(icons), ...Object.keys(colors)])
+  slugs.delete('default')
+
+  for (const slug of slugs) {
+    const imageName = `marker-${slug}`
+    if (map.hasImage(imageName)) map.removeImage(imageName)
+
+    const iconUrl = icons[slug]
+    const color = colors[slug] || colors['default'] || '#3B82F6'
+    // Use first letter of first word for initial
+    const initial = slug.replace(/-.*/, '').charAt(0).toUpperCase()
+
+    let imageObj = null
+    if (iconUrl) {
+      imageObj = await createIconMarker(iconUrl)
+    }
+    if (!imageObj) {
+      imageObj = createInitialMarker(color, initial)
+    }
+
+    map.addImage(imageName, imageObj)
+  }
+
+  // Default fallback marker
+  const defaultName = 'marker-default'
+  if (map.hasImage(defaultName)) map.removeImage(defaultName)
+  map.addImage(defaultName, createInitialMarker(colors['default'] || '#3B82F6', '?'))
+}
+
+// --- Supercluster ---
+
 const initCluster = () => {
   clusterIndex = new Supercluster({
     radius: 60,
@@ -79,7 +192,6 @@ const initCluster = () => {
   })
 }
 
-// Convert locations to GeoJSON
 const createGeoJSON = (locations) => {
   return {
     type: 'FeatureCollection',
@@ -94,34 +206,31 @@ const createGeoJSON = (locations) => {
         name: location.name,
         restaurant: location.restaurant,
         restaurantSlug: location.restaurant?.slug || 'default',
+        restaurantName: location.restaurant?.name || '',
         color: configStore.getRestaurantColor(location.restaurant?.slug)
       }
     }))
   }
 }
 
-// Load locations into cluster index
 const loadClusters = () => {
   if (!clusterIndex || !props.locations || props.locations.length === 0) return
-
   const geojson = createGeoJSON(props.locations)
   clusterIndex.load(geojson.features)
 }
 
-// Get clusters for current map view
 const getClusters = () => {
   if (!map || !clusterIndex) return []
-
   const bounds = map.getBounds()
   const zoom = map.getZoom()
-
   return clusterIndex.getClusters(
     [bounds.getWest(), bounds.getSouth(), bounds.getEast(), bounds.getNorth()],
     Math.floor(zoom)
   )
 }
 
-// Update user location marker
+// --- User Location Marker ---
+
 const updateUserLocation = () => {
   if (!map || !map.isStyleLoaded()) return
 
@@ -129,31 +238,26 @@ const updateUserLocation = () => {
   const layerId = 'user-location-marker'
   const pulseLayerId = 'user-location-pulse'
 
-  // Remove existing layers and source
   if (map.getLayer(pulseLayerId)) map.removeLayer(pulseLayerId)
   if (map.getLayer(layerId)) map.removeLayer(layerId)
   if (map.getSource(sourceId)) map.removeSource(sourceId)
 
-  // Add user location if provided
   if (props.userLocation && props.userLocation.lat && props.userLocation.lng) {
-    const userGeoJSON = {
-      type: 'FeatureCollection',
-      features: [{
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [props.userLocation.lng, props.userLocation.lat]
-        },
-        properties: {}
-      }]
-    }
-
     map.addSource(sourceId, {
       type: 'geojson',
-      data: userGeoJSON
+      data: {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          geometry: {
+            type: 'Point',
+            coordinates: [props.userLocation.lng, props.userLocation.lat]
+          },
+          properties: {}
+        }]
+      }
     })
 
-    // Outer pulse circle
     map.addLayer({
       id: pulseLayerId,
       type: 'circle',
@@ -168,7 +272,6 @@ const updateUserLocation = () => {
       }
     })
 
-    // Inner blue dot
     map.addLayer({
       id: layerId,
       type: 'circle',
@@ -182,7 +285,6 @@ const updateUserLocation = () => {
       }
     })
 
-    // Pan map to user location
     map.easeTo({
       center: [props.userLocation.lng, props.userLocation.lat],
       duration: 1000
@@ -190,171 +292,148 @@ const updateUserLocation = () => {
   }
 }
 
-// Update markers on map
+// --- Map Layers ---
+
 const updateMarkers = () => {
   if (!map || !map.isStyleLoaded()) return
 
-  const clusterLayerId = 'clusters'
-  const clusterCountLayerId = 'cluster-count'
-  const unclusteredLayerId = 'unclustered-points'
-  const sourceId = 'locations'
-
   // Remove existing layers and source
-  if (map.getLayer(clusterCountLayerId)) map.removeLayer(clusterCountLayerId)
-  if (map.getLayer(clusterLayerId)) map.removeLayer(clusterLayerId)
-  if (map.getLayer(unclusteredLayerId)) map.removeLayer(unclusteredLayerId)
-  if (map.getSource(sourceId)) map.removeSource(sourceId)
+  if (map.getLayer(CLUSTER_COUNT_LAYER)) map.removeLayer(CLUSTER_COUNT_LAYER)
+  if (map.getLayer(CLUSTER_LAYER)) map.removeLayer(CLUSTER_LAYER)
+  if (map.getLayer(MARKERS_LAYER)) map.removeLayer(MARKERS_LAYER)
+  if (map.getSource(SOURCE_ID)) map.removeSource(SOURCE_ID)
 
-  // Add new source and layers if we have locations
-  if (props.locations && props.locations.length > 0) {
-    // Load locations into cluster index
-    loadClusters()
+  if (!props.locations || props.locations.length === 0) return
 
-    // Get clusters for current view
-    const clusters = getClusters()
+  loadClusters()
+  const clusters = getClusters()
 
-    // Create GeoJSON from clusters
-    const clusterGeoJSON = {
-      type: 'FeatureCollection',
-      features: clusters
+  map.addSource(SOURCE_ID, {
+    type: 'geojson',
+    data: { type: 'FeatureCollection', features: clusters }
+  })
+
+  // Cluster circles — brand green
+  map.addLayer({
+    id: CLUSTER_LAYER,
+    type: 'circle',
+    source: SOURCE_ID,
+    filter: ['has', 'point_count'],
+    paint: {
+      'circle-color': [
+        'step', ['get', 'point_count'],
+        '#06C167', 10,
+        '#05a85a', 50,
+        '#048a49'
+      ],
+      'circle-radius': [
+        'step', ['get', 'point_count'],
+        18, 10,
+        24, 50,
+        30
+      ],
+      'circle-stroke-color': '#ffffff',
+      'circle-stroke-width': 2
     }
+  })
 
-    map.addSource(sourceId, {
-      type: 'geojson',
-      data: clusterGeoJSON
-    })
+  // Cluster count text
+  map.addLayer({
+    id: CLUSTER_COUNT_LAYER,
+    type: 'symbol',
+    source: SOURCE_ID,
+    filter: ['has', 'point_count'],
+    layout: {
+      'text-field': '{point_count_abbreviated}',
+      'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
+      'text-size': 13
+    },
+    paint: {
+      'text-color': '#ffffff'
+    }
+  })
 
-    // Cluster circles
-    map.addLayer({
-      id: clusterLayerId,
-      type: 'circle',
-      source: sourceId,
-      filter: ['has', 'point_count'],
-      paint: {
-        'circle-color': [
-          'step',
-          ['get', 'point_count'],
-          '#51bbd6', 10,
-          '#f1f075', 30,
-          '#f28cb1'
-        ],
-        'circle-radius': [
-          'step',
-          ['get', 'point_count'],
-          20, 10,
-          30, 30,
-          40
-        ],
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 2
-      }
-    })
-
-    // Cluster count labels
-    map.addLayer({
-      id: clusterCountLayerId,
-      type: 'symbol',
-      source: sourceId,
-      filter: ['has', 'point_count'],
-      layout: {
-        'text-field': '{point_count_abbreviated}',
-        'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Bold'],
-        'text-size': 14
-      },
-      paint: {
-        'text-color': '#ffffff'
-      }
-    })
-
-    // Individual location markers
-    map.addLayer({
-      id: unclusteredLayerId,
-      type: 'circle',
-      source: sourceId,
-      filter: ['!', ['has', 'point_count']],
-      paint: {
-        'circle-radius': 8,
-        'circle-color': ['get', 'color'],
-        'circle-stroke-color': '#ffffff',
-        'circle-stroke-width': 2,
-        'circle-opacity': 0.9
-      }
-    })
-
-    // Add hover cursor
-    map.on('mouseenter', unclusteredLayerId, () => {
-      map.getCanvas().style.cursor = 'pointer'
-    })
-
-    map.on('mouseleave', unclusteredLayerId, () => {
-      map.getCanvas().style.cursor = ''
-    })
-
-    // Handle cluster click - zoom to cluster bounds
-    map.on('click', clusterLayerId, (e) => {
-      const features = map.queryRenderedFeatures(e.point, {
-        layers: [clusterLayerId]
-      })
-
-      if (features.length > 0) {
-        const clusterId = features[0].properties.cluster_id
-        const zoom = map.getZoom()
-        const expansionZoom = clusterIndex.getClusterExpansionZoom(clusterId)
-
-        map.easeTo({
-          center: features[0].geometry.coordinates,
-          zoom: expansionZoom
-        })
-      }
-    })
-
-    // Handle individual marker click
-    map.on('click', unclusteredLayerId, (e) => {
-      if (e.features && e.features.length > 0) {
-        const feature = e.features[0]
-        const location = {
-          id: feature.properties.id,
-          name: feature.properties.name,
-          restaurant: JSON.parse(feature.properties.restaurant)
-        }
-
-        emit('marker-click', {
-          ...location,
-          coordinates: feature.geometry.coordinates
-        })
-      }
-    })
-
-    // Handle hover cursor
-    map.on('mouseenter', clusterLayerId, () => {
-      map.getCanvas().style.cursor = 'pointer'
-    })
-
-    map.on('mouseleave', clusterLayerId, () => {
-      map.getCanvas().style.cursor = ''
-    })
-
-    map.on('mouseenter', unclusteredLayerId, () => {
-      map.getCanvas().style.cursor = 'pointer'
-    })
-
-    map.on('mouseleave', unclusteredLayerId, () => {
-      map.getCanvas().style.cursor = ''
-    })
-  }
+  // Individual markers — restaurant icon symbols
+  map.addLayer({
+    id: MARKERS_LAYER,
+    type: 'symbol',
+    source: SOURCE_ID,
+    filter: ['!', ['has', 'point_count']],
+    layout: {
+      'icon-image': ['concat', 'marker-', ['get', 'restaurantSlug']],
+      'icon-size': 0.5,
+      'icon-allow-overlap': true,
+      'icon-ignore-placement': true,
+      // Restaurant name labels at high zoom
+      'text-field': ['step', ['zoom'], '', 14, ['get', 'restaurantName']],
+      'text-font': ['DIN Offc Pro Medium', 'Arial Unicode MS Regular'],
+      'text-size': 11,
+      'text-offset': [0, 1.8],
+      'text-anchor': 'top',
+      'text-optional': true,
+      'text-allow-overlap': false,
+    },
+    paint: {
+      'icon-opacity': 0.95,
+      'text-color': isDarkMode.value ? '#e5e5e5' : '#333333',
+      'text-halo-color': isDarkMode.value ? '#1a1a1a' : '#ffffff',
+      'text-halo-width': 1.5,
+    }
+  })
 }
 
-onMounted(() => {
-  // Initialize cluster index
-  initCluster()
+// --- Event Handlers (registered once) ---
 
-  // Check initial dark mode state
+const setupMapEvents = () => {
+  // Cluster click — zoom to expand
+  map.on('click', CLUSTER_LAYER, (e) => {
+    const features = map.queryRenderedFeatures(e.point, { layers: [CLUSTER_LAYER] })
+    if (features.length > 0) {
+      const clusterId = features[0].properties.cluster_id
+      const expansionZoom = clusterIndex.getClusterExpansionZoom(clusterId)
+      map.easeTo({
+        center: features[0].geometry.coordinates,
+        zoom: expansionZoom
+      })
+    }
+  })
+
+  // Marker click — emit for bottom sheet
+  map.on('click', MARKERS_LAYER, (e) => {
+    if (e.features && e.features.length > 0) {
+      const feature = e.features[0]
+      emit('marker-click', {
+        id: feature.properties.id,
+        name: feature.properties.name,
+        restaurant: JSON.parse(feature.properties.restaurant),
+        coordinates: feature.geometry.coordinates
+      })
+    }
+  })
+
+  // Hover cursors
+  map.on('mouseenter', CLUSTER_LAYER, () => {
+    map.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', CLUSTER_LAYER, () => {
+    map.getCanvas().style.cursor = ''
+  })
+  map.on('mouseenter', MARKERS_LAYER, () => {
+    map.getCanvas().style.cursor = 'pointer'
+  })
+  map.on('mouseleave', MARKERS_LAYER, () => {
+    map.getCanvas().style.cursor = ''
+  })
+}
+
+// --- Lifecycle ---
+
+onMounted(async () => {
+  initCluster()
   updateDarkMode()
 
-  // Set Mapbox access token
   mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN
 
-  // Initialize map
   map = new mapboxgl.Map({
     container: mapContainer.value,
     style: getMapStyle(),
@@ -362,60 +441,54 @@ onMounted(() => {
     zoom: props.zoom
   })
 
-  // Watch for theme changes
+  // Theme observer
   const observer = new MutationObserver(() => {
     const newIsDark = document.documentElement.classList.contains('dark')
     if (newIsDark !== isDarkMode.value) {
       isDarkMode.value = newIsDark
-      if (map) {
-        map.setStyle(getMapStyle())
-      }
+      if (map) map.setStyle(getMapStyle())
     }
   })
-
   observer.observe(document.documentElement, {
     attributes: true,
     attributeFilter: ['class']
   })
-
-  // Store observer for cleanup
   map._themeObserver = observer
 
-  // Add map controls
+  // Map controls
   map.addControl(new mapboxgl.NavigationControl(), 'top-right')
   map.addControl(
     new mapboxgl.GeolocateControl({
-      positionOptions: {
-        enableHighAccuracy: true
-      },
+      positionOptions: { enableHighAccuracy: true },
       trackUserLocation: true,
       showUserHeading: true
     }),
     'top-right'
   )
 
-  // Handle map load
-  map.on('load', () => {
+  // Map load
+  map.on('load', async () => {
+    await loadMarkerImages()
+    setupMapEvents()
     updateMarkers()
     updateUserLocation()
     isLoading.value = false
     emit('load', map)
   })
 
-  // Handle style changes (when theme changes)
-  map.on('style.load', () => {
-    // Re-add markers and user location after style loads
+  // Style reload (theme change) — re-load images and layers
+  map.on('style.load', async () => {
+    await loadMarkerImages()
     updateMarkers()
     updateUserLocation()
   })
 
-  // Handle map movement (pan/zoom) - update clusters
+  // Map movement — update clusters
   map.on('moveend', () => {
     const bounds = map.getBounds()
     const center = map.getCenter()
     const zoom = map.getZoom()
 
-    // Update clusters for new view
     updateMarkers()
 
     const boundsData = {
@@ -431,13 +504,9 @@ onMounted(() => {
       zoom: zoom
     }
 
-    // Emit immediate move event (for UI updates)
     emit('move', boundsData)
 
-    // Emit debounced bounds-change event (for API calls)
-    if (boundsChangeTimeout) {
-      clearTimeout(boundsChangeTimeout)
-    }
+    if (boundsChangeTimeout) clearTimeout(boundsChangeTimeout)
     boundsChangeTimeout = setTimeout(() => {
       emit('bounds-change', {
         bbox: `${bounds.getSouth()},${bounds.getWest()},${bounds.getNorth()},${bounds.getEast()}`,
@@ -451,113 +520,84 @@ onMounted(() => {
     }, 300)
   })
 
-  // Handle container resize using ResizeObserver
+  // Resize observer
   const resizeObserver = new ResizeObserver(() => {
-    if (map) {
-      map.resize()
-    }
+    if (map) map.resize()
   })
   resizeObserver.observe(mapContainer.value)
-
-  // Store cleanup reference
   map._resizeObserver = resizeObserver
 })
 
 onUnmounted(() => {
-  // Clear debounce timeout
   if (boundsChangeTimeout) {
     clearTimeout(boundsChangeTimeout)
     boundsChangeTimeout = null
   }
 
   if (map) {
-    // Disconnect theme observer
-    if (map._themeObserver) {
-      map._themeObserver.disconnect()
-    }
-    // Disconnect resize observer
-    if (map._resizeObserver) {
-      map._resizeObserver.disconnect()
-    }
-    // Remove map
+    if (map._themeObserver) map._themeObserver.disconnect()
+    if (map._resizeObserver) map._resizeObserver.disconnect()
     map.remove()
     map = null
   }
-  // Clean up cluster index
   clusterIndex = null
 })
 
-// Watch for center prop changes
+// --- Watchers ---
+
 watch(() => props.center, (newCenter) => {
-  if (map && newCenter) {
-    map.setCenter(newCenter)
-  }
+  if (map && newCenter) map.setCenter(newCenter)
 })
 
-// Watch for zoom prop changes
 watch(() => props.zoom, (newZoom) => {
-  if (map && newZoom !== undefined) {
-    map.setZoom(newZoom)
-  }
+  if (map && newZoom !== undefined) map.setZoom(newZoom)
 })
 
-// Watch for locations prop changes
 watch(() => props.locations, () => {
   if (map && map.isStyleLoaded()) {
-    // Reinitialize cluster with new locations
-    if (!clusterIndex) {
-      initCluster()
-    }
+    if (!clusterIndex) initCluster()
     updateMarkers()
   }
 }, { deep: true })
 
-// Watch for highlightedRestaurantSlug changes
 watch(() => props.highlightedRestaurantSlug, (newSlug) => {
-  if (map && map.isStyleLoaded() && map.getLayer('unclustered-points')) {
-    // Update marker styling based on highlighted restaurant
-    if (newSlug) {
-      // Make matching markers larger and more prominent
-      map.setPaintProperty('unclustered-points', 'circle-radius', [
-        'case',
-        ['==', ['get', 'restaurantSlug'], newSlug],
-        12,  // Larger radius for highlighted
-        8    // Normal radius
-      ])
-      map.setPaintProperty('unclustered-points', 'circle-stroke-width', [
-        'case',
-        ['==', ['get', 'restaurantSlug'], newSlug],
-        3,   // Thicker stroke for highlighted
-        2    // Normal stroke
-      ])
-      map.setPaintProperty('unclustered-points', 'circle-opacity', [
-        'case',
-        ['==', ['get', 'restaurantSlug'], newSlug],
-        1,     // Full opacity for highlighted
-        0.4    // Dimmed for non-highlighted
-      ])
-    } else {
-      // Reset to normal styling
-      map.setPaintProperty('unclustered-points', 'circle-radius', 8)
-      map.setPaintProperty('unclustered-points', 'circle-stroke-width', 2)
-      map.setPaintProperty('unclustered-points', 'circle-opacity', 0.9)
-    }
+  if (!map || !map.isStyleLoaded() || !map.getLayer(MARKERS_LAYER)) return
+
+  if (newSlug) {
+    map.setLayoutProperty(MARKERS_LAYER, 'icon-size', [
+      'case',
+      ['==', ['get', 'restaurantSlug'], newSlug],
+      0.65,
+      0.5
+    ])
+    map.setPaintProperty(MARKERS_LAYER, 'icon-opacity', [
+      'case',
+      ['==', ['get', 'restaurantSlug'], newSlug],
+      1,
+      0.35
+    ])
+    map.setPaintProperty(MARKERS_LAYER, 'text-opacity', [
+      'case',
+      ['==', ['get', 'restaurantSlug'], newSlug],
+      1,
+      0.3
+    ])
+  } else {
+    map.setLayoutProperty(MARKERS_LAYER, 'icon-size', 0.5)
+    map.setPaintProperty(MARKERS_LAYER, 'icon-opacity', 0.95)
+    map.setPaintProperty(MARKERS_LAYER, 'text-opacity', 1)
   }
 })
 
-// Watch for userLocation prop changes
 watch(() => props.userLocation, (newLocation) => {
   if (map && map.isStyleLoaded() && newLocation) {
     updateUserLocation()
   }
 }, { deep: true })
 
-// Expose map instance and loading state for parent components
 defineExpose({
   getMap: () => map,
-  setLoading: (loading) => {
-    isLoading.value = loading
-  }
+  setLoading: (loading) => { isLoading.value = loading }
 })
 </script>
 
@@ -628,4 +668,3 @@ defineExpose({
   opacity: 0;
 }
 </style>
-
