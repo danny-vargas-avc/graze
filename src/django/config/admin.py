@@ -1,9 +1,10 @@
 from django.contrib import admin
+from unfold.admin import ModelAdmin
 from .models import FilterConfiguration, QuickFilter, SortOption, AppConfiguration
 
 
 @admin.register(FilterConfiguration)
-class FilterConfigurationAdmin(admin.ModelAdmin):
+class FilterConfigurationAdmin(ModelAdmin):
     """
     Admin interface for filter configurations.
     """
@@ -37,7 +38,7 @@ class FilterConfigurationAdmin(admin.ModelAdmin):
 
 
 @admin.register(QuickFilter)
-class QuickFilterAdmin(admin.ModelAdmin):
+class QuickFilterAdmin(ModelAdmin):
     """
     Admin interface for quick filter presets.
     """
@@ -71,7 +72,7 @@ class QuickFilterAdmin(admin.ModelAdmin):
 
 
 @admin.register(SortOption)
-class SortOptionAdmin(admin.ModelAdmin):
+class SortOptionAdmin(ModelAdmin):
     """
     Admin interface for sort options.
     """
@@ -105,7 +106,7 @@ class SortOptionAdmin(admin.ModelAdmin):
 
 
 @admin.register(AppConfiguration)
-class AppConfigurationAdmin(admin.ModelAdmin):
+class AppConfigurationAdmin(ModelAdmin):
     """
     Admin interface for app configuration (singleton).
     """

@@ -38,21 +38,25 @@ def config_all(request):
     # Get app configuration (singleton)
     app_config = AppConfiguration.get_instance()
 
-    # Get restaurant colors
-    # Try to import Restaurant model, fallback to empty dict if not available
+    # Get restaurant colors and icons
     restaurant_colors = {}
+    restaurant_icons = {}
     try:
         from api.models import Restaurant
         restaurants = Restaurant.objects.all()
         restaurant_colors = {
             restaurant.slug: restaurant.brand_color
             for restaurant in restaurants
-            if hasattr(restaurant, 'brand_color') and restaurant.brand_color
+            if restaurant.brand_color
         }
-        # Add default color
         restaurant_colors['default'] = '#3B82F6'
+
+        restaurant_icons = {
+            restaurant.slug: request.build_absolute_uri(restaurant.icon.url)
+            for restaurant in restaurants
+            if restaurant.icon
+        }
     except ImportError:
-        # Restaurant model not available yet
         restaurant_colors = {'default': '#3B82F6'}
 
     # Serialize data
@@ -62,6 +66,7 @@ def config_all(request):
         'sort_options': SortOptionSerializer(sort_options, many=True).data,
         'app_settings': AppConfigurationSerializer(app_config).data,
         'restaurant_colors': restaurant_colors,
+        'restaurant_icons': restaurant_icons,
         'version': app_config.version
     }
 

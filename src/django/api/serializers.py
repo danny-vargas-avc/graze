@@ -3,15 +3,35 @@ from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, Location
 
 
 class RestaurantListSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Restaurant
         fields = ['id', 'name', 'slug', 'logo_url', 'item_count']
 
+    def get_logo_url(self, obj):
+        if obj.logo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.logo.url)
+            return obj.logo.url
+        return obj.logo_url or ''
+
 
 class RestaurantDetailSerializer(serializers.ModelSerializer):
+    logo_url = serializers.SerializerMethodField()
+
     class Meta:
         model = Restaurant
         fields = ['id', 'name', 'slug', 'website_url', 'logo_url', 'nutrition_source_url', 'item_count', 'last_updated']
+
+    def get_logo_url(self, obj):
+        if obj.logo:
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(obj.logo.url)
+            return obj.logo.url
+        return obj.logo_url or ''
 
 
 class MenuItemListSerializer(serializers.ModelSerializer):

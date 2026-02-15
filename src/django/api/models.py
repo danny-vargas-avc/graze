@@ -8,6 +8,8 @@ class Restaurant(models.Model):
     slug = models.SlugField(max_length=255, unique=True)
     website_url = models.URLField(blank=True)
     logo_url = models.URLField(blank=True)
+    logo = models.ImageField(upload_to='restaurants/logos/', blank=True, help_text='Main logo image')
+    icon = models.ImageField(upload_to='restaurants/icons/', blank=True, help_text='Square icon for map markers and thumbnails')
     brand_color = models.CharField(max_length=7, blank=True, default='#3B82F6', help_text='Hex color for map markers (e.g., #FF5733)')
     nutrition_source_url = models.URLField(blank=True)
     item_count = models.PositiveIntegerField(default=0)

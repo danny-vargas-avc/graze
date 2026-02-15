@@ -93,7 +93,7 @@ class DishListView(APIView):
             limit, offset = 20, 0
 
         queryset = queryset[offset:offset + limit]
-        serializer = MenuItemListSerializer(queryset, many=True)
+        serializer = MenuItemListSerializer(queryset, many=True, context={'request': request})
 
         return Response({
             'data': serializer.data,
@@ -121,7 +121,7 @@ class RestaurantDetailView(generics.RetrieveAPIView):
         response = super().get(request, *args, **kwargs)
         restaurant = self.get_object()
         dishes = MenuItem.objects.filter(restaurant=restaurant, is_available=True).order_by('-protein')
-        response.data['dishes'] = MenuItemListSerializer(dishes, many=True).data
+        response.data['dishes'] = MenuItemListSerializer(dishes, many=True, context={'request': request}).data
         return response
 
 
@@ -142,8 +142,8 @@ class StatsView(APIView):
             'total_restaurants': total_restaurants,
             'total_locations': total_locations,
             'last_updated': last_updated,
-            'top_protein_dish': MenuItemListSerializer(top_protein).data if top_protein else None,
-            'best_ratio_dish': MenuItemListSerializer(best_ratio).data if best_ratio else None,
+            'top_protein_dish': MenuItemListSerializer(top_protein, context={'request': request}).data if top_protein else None,
+            'best_ratio_dish': MenuItemListSerializer(best_ratio, context={'request': request}).data if best_ratio else None,
         })
 
 
@@ -238,7 +238,7 @@ class LocationListView(APIView):
         total = queryset.count()
         queryset = queryset[:limit]
 
-        serializer = LocationListSerializer(queryset, many=True)
+        serializer = LocationListSerializer(queryset, many=True, context={'request': request})
 
         # Build meta response
         meta = {

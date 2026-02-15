@@ -99,14 +99,14 @@ const FALLBACK_CONFIG = {
     'panera': '#5C8B3E',
     'chick-fil-a': '#E51937',
     'in-n-out': '#DA291C',
+    'shake-shack': '#1F8143',
+    'wingstop': '#024731',
+    'raising-canes': '#CE1126',
+    'mod-pizza': '#F05023',
+    'sweetfin': '#00B4D8',
     'default': '#3B82F6'
   },
-  restaurant_icons: {
-    'cava': '/logos/cava-icon.jpeg',
-    'chick-fil-a': '/logos/chick-fil-a-icon.png',
-    'panera': '/logos/panera-icon.jpeg',
-    'sweetgreen': '/logos/sweetgreen-icon.svg',
-  },
+  restaurant_icons: {},
   version: 1
 }
 
