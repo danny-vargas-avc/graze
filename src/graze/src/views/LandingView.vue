@@ -255,8 +255,8 @@ function resizeCanvas() {
 
   canvas.width = width
   canvas.height = height
-  canvas.style.width = window.innerWidth + 'px'
-  canvas.style.height = window.innerHeight + 'px'
+  canvas.style.width = '100%'
+  canvas.style.height = '100%'
 
   // Use lower resolution for simulation (performance)
   simWidth = Math.floor(width * 0.5)

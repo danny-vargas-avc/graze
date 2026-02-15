@@ -49,6 +49,7 @@ const nutritionTerms = [
 // Simulation state
 let currentPreset = null
 let currentPalette = null
+let appBg = [0.976, 0.98, 0.984]
 let simWidth = 0
 let simHeight = 0
 
@@ -158,6 +159,7 @@ const breakdownShaderSource = `
   uniform float u_breakdownProgress;
   uniform float u_convergeProgress;
   uniform float u_fadeOut;
+  uniform vec3 u_fadeBg;
 
   // Voronoi seeds
   uniform vec2 u_seeds[16];
@@ -234,9 +236,8 @@ const breakdownShaderSource = `
     vec3 gapColor = u_bgColor * 0.4;
     vec3 fragColor = mix(gapColor, color, crack);
 
-    // Fade toward search page bg (#f9fafb)
-    vec3 searchBg = vec3(0.976, 0.98, 0.984);
-    fragColor = mix(fragColor, searchBg, u_fadeOut);
+    // Fade toward app background
+    fragColor = mix(fragColor, u_fadeBg, u_fadeOut);
 
     gl_FragColor = vec4(clamp(fragColor, 0.0, 1.0), 1.0);
   }
@@ -320,8 +321,8 @@ function resizeCanvas() {
 
   canvas.width = width
   canvas.height = height
-  canvas.style.width = window.innerWidth + 'px'
-  canvas.style.height = window.innerHeight + 'px'
+  canvas.style.width = '100%'
+  canvas.style.height = '100%'
 
   simWidth = Math.floor(width * 0.5)
   simHeight = Math.floor(height * 0.5)
@@ -451,6 +452,9 @@ function displayBreakdown() {
   gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_breakdownProgress'), phase.breakdownProgress)
   gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_convergeProgress'), phase.convergeProgress)
   gl.uniform1f(gl.getUniformLocation(breakdownProgram, 'u_fadeOut'), phase.fadeOut)
+
+  // App background color (respects dark mode)
+  gl.uniform3f(gl.getUniformLocation(breakdownProgram, 'u_fadeBg'), appBg[0], appBg[1], appBg[2])
 
   // Voronoi seeds
   gl.uniform2fv(gl.getUniformLocation(breakdownProgram, 'u_seeds[0]'), voronoiSeedsAnimated)
@@ -588,6 +592,17 @@ onMounted(() => {
   // Set text color from palette
   const fg = currentPalette.fg
   fgColorCSS.value = `rgba(${Math.round(fg[0]*255)}, ${Math.round(fg[1]*255)}, ${Math.round(fg[2]*255)}, 0.9)`
+
+  // Resolve app background color for fade target (respects dark mode)
+  const bgHex = getComputedStyle(document.documentElement).getPropertyValue('--color-background').trim()
+  if (bgHex.startsWith('#')) {
+    const hex = bgHex.slice(1)
+    appBg = [
+      parseInt(hex.substring(0, 2), 16) / 255,
+      parseInt(hex.substring(2, 4), 16) / 255,
+      parseInt(hex.substring(4, 6), 16) / 255,
+    ]
+  }
 
   // Initialize Voronoi seeds
   for (let i = 0; i < 16; i++) {
