@@ -4,7 +4,7 @@
 import { ref, computed, watch, onMounted, onBeforeUnmount, nextTick } from 'vue'
 
 const IOS_SPRING = 'cubic-bezier(0.32, 0.72, 0, 1)'
-const SPRING_DURATION = 350
+const SPRING_DURATION = 450
 const FLICK_THRESHOLD = 0.5 // px/ms
 const RUBBER_BAND_DEFAULT = 0.3
 

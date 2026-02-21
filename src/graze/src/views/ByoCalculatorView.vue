@@ -104,7 +104,7 @@ const hasExtendedNutrition = computed(() => {
 
 // Draggable nutrition sheet
 const barHeight = 55
-const expandedHeight = Math.min(window.innerHeight * 0.7, 600)
+const expandedHeight = window.innerHeight - 80
 
 const { handleRef: byoHandleRef, sheetStyle: byoSheetStyle, currentHeight: byoHeight, isDragging: byoDragging, snapTo: byoSnapTo } = useSheetDrag({
   snapPoints: [barHeight, expandedHeight],
@@ -115,7 +115,7 @@ const showNutrition = computed(() => byoHeight.value > barHeight + 20)
 
 const byoBarStyle = computed(() => ({
   maxHeight: `${byoHeight.value}px`,
-  transition: byoDragging.value ? 'none' : `max-height 350ms cubic-bezier(0.32, 0.72, 0, 1)`,
+  transition: byoDragging.value ? 'none' : `max-height 450ms cubic-bezier(0.32, 0.72, 0, 1)`,
   overflow: 'hidden',
 }))
 
@@ -757,7 +757,8 @@ function retry() {
 
 /* ---- Nutrition sheet (inside sticky bar) ---- */
 .nutrition-sheet {
-  padding: 0 20px 20px;
+  padding: 0 20px 32px;
+  max-height: calc(100dvh - 200px);
   overflow-y: auto;
 }
 

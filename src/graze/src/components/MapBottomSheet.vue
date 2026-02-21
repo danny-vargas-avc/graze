@@ -217,7 +217,7 @@ onMounted(async () => {
 }
 
 .sheet-body {
-  padding: 0 16px 24px;
+  padding: 0 16px calc(72px + env(safe-area-inset-bottom));
 }
 
 .sheet-header {
