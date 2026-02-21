@@ -1,7 +1,8 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { getDishes } from '../api/dishes'
 import { useConfigStore } from '../stores/config'
+import { useSheetDrag } from '../composables/useSheetDrag'
 
 const props = defineProps({
   location: {
@@ -43,6 +44,26 @@ const distanceText = computed(() => {
   return null
 })
 
+// Sheet drag setup — start closed, open after measuring content
+const { sheetRef, handleRef, sheetStyle, currentHeight, snapTo, updateSnapPoints } = useSheetDrag({
+  snapPoints: [0, 400],
+  initialSnap: 0,
+  onClose: () => emit('close'),
+})
+
+function measureAndOpen() {
+  if (!sheetRef.value) return
+  const height = sheetRef.value.scrollHeight
+  updateSnapPoints([0, height])
+  snapTo(1)
+}
+
+// Overlay fade based on sheet height
+const overlayOpacity = computed(() => {
+  if (currentHeight.value <= 0) return 0
+  return Math.min(currentHeight.value / 300, 1) * 0.3
+})
+
 async function loadDishes() {
   if (!props.location.restaurant?.slug) return
   loading.value = true
@@ -57,85 +78,98 @@ async function loadDishes() {
     console.warn('Failed to load dishes for location:', error)
   } finally {
     loading.value = false
+    // Re-measure after content changes
+    await nextTick()
+    if (sheetRef.value) {
+      const height = sheetRef.value.scrollHeight
+      updateSnapPoints([0, height])
+    }
   }
 }
 
-onMounted(() => {
+onMounted(async () => {
   loadDishes()
+  // Measure with skeleton content and open
+  await nextTick()
+  measureAndOpen()
 })
 </script>
 
 <template>
-  <div class="sheet-overlay" @click.self="emit('close')">
-    <div class="sheet" :style="{ '--brand-color': brandColor }">
+  <div class="sheet-overlay" :style="{ backgroundColor: `rgba(0,0,0,${overlayOpacity})` }" @click.self="snapTo(0)">
+    <div ref="sheetRef" class="sheet" :style="{ ...sheetStyle, '--brand-color': brandColor }">
       <!-- Drag handle -->
-      <div class="sheet-handle">
-        <div class="handle-bar"></div>
-      </div>
+      <div ref="handleRef" class="sheet-drag-area">
+        <div class="sheet-handle">
+          <div class="handle-bar"></div>
+        </div>
 
-      <!-- Header -->
-      <div class="sheet-header">
-        <div class="header-left">
-          <div class="sheet-logo" :class="{ 'has-icon': iconUrl }" :style="{ borderColor: brandColor + '30' }">
-            <img v-if="sheetLogoUrl" :src="sheetLogoUrl" :alt="location.restaurant?.name" />
-            <div v-else class="logo-fallback" :style="{ backgroundColor: brandColor }">
-              {{ location.restaurant?.name?.charAt(0) }}
+        <!-- Header -->
+        <div class="sheet-header">
+          <div class="header-left">
+            <div class="sheet-logo" :class="{ 'has-icon': iconUrl }" :style="{ borderColor: brandColor + '30' }">
+              <img v-if="sheetLogoUrl" :src="sheetLogoUrl" :alt="location.restaurant?.name" />
+              <div v-else class="logo-fallback" :style="{ backgroundColor: brandColor }">
+                {{ location.restaurant?.name?.charAt(0) }}
+              </div>
+            </div>
+            <div>
+              <h3 class="restaurant-name">{{ location.restaurant?.name }}</h3>
+              <p class="location-address">{{ addressLine }}</p>
             </div>
           </div>
-          <div>
-            <h3 class="restaurant-name">{{ location.restaurant?.name }}</h3>
-            <p class="location-address">{{ addressLine }}</p>
-          </div>
+          <button class="close-btn" @click="snapTo(0)">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path stroke-linecap="round" d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <button class="close-btn" @click="emit('close')">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path stroke-linecap="round" d="M18 6L6 18M6 6l12 12" />
-          </svg>
-        </button>
       </div>
 
       <!-- Distance badge -->
-      <div v-if="distanceText" class="distance-badge">
-        <svg class="distance-icon" viewBox="0 0 16 16" fill="currentColor">
-          <path d="M8 1a5 5 0 00-5 5c0 3.5 5 9 5 9s5-5.5 5-9a5 5 0 00-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" />
-        </svg>
-        {{ distanceText }}
-      </div>
-
-      <!-- Dishes preview -->
-      <div class="dishes-section">
-        <p class="dishes-label">Top Dishes</p>
-        <div v-if="loading" class="dishes-loading">
-          <div class="skeleton-dish" v-for="n in 3" :key="n"></div>
+      <div class="sheet-body">
+        <div v-if="distanceText" class="distance-badge">
+          <svg class="distance-icon" viewBox="0 0 16 16" fill="currentColor">
+            <path d="M8 1a5 5 0 00-5 5c0 3.5 5 9 5 9s5-5.5 5-9a5 5 0 00-5-5zm0 7a2 2 0 110-4 2 2 0 010 4z" />
+          </svg>
+          {{ distanceText }}
         </div>
-        <div v-else-if="dishes.length" class="dishes-list">
-          <div v-for="dish in dishes" :key="dish.id" class="dish-row">
-            <div class="dish-info">
-              <span class="dish-name">{{ dish.name }}</span>
-              <span class="dish-category">{{ dish.category }}</span>
-            </div>
-            <div class="dish-macros">
-              <span class="macro-cal">{{ dish.calories }} cal</span>
-              <span class="macro-protein">{{ dish.protein }}g protein</span>
+
+        <!-- Dishes preview -->
+        <div class="dishes-section">
+          <p class="dishes-label">Top Dishes</p>
+          <div v-if="loading" class="dishes-loading">
+            <div class="skeleton-dish" v-for="n in 3" :key="n"></div>
+          </div>
+          <div v-else-if="dishes.length" class="dishes-list">
+            <div v-for="dish in dishes" :key="dish.id" class="dish-row">
+              <div class="dish-info">
+                <span class="dish-name">{{ dish.name }}</span>
+                <span class="dish-category">{{ dish.category }}</span>
+              </div>
+              <div class="dish-macros">
+                <span class="macro-cal">{{ dish.calories }} cal</span>
+                <span class="macro-protein">{{ dish.protein }}g protein</span>
+              </div>
             </div>
           </div>
+          <div v-else class="dishes-empty">
+            <p>No dishes available</p>
+          </div>
         </div>
-        <div v-else class="dishes-empty">
-          <p>No dishes available</p>
-        </div>
-      </div>
 
-      <!-- View All button -->
-      <button
-        class="view-all-btn"
-        :style="{ backgroundColor: brandColor }"
-        @click="emit('view-all', location.restaurant?.slug)"
-      >
-        View Full Menu
-        <svg class="btn-arrow" viewBox="0 0 20 20" fill="currentColor">
-          <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
-        </svg>
-      </button>
+        <!-- View All button -->
+        <button
+          class="view-all-btn"
+          :style="{ backgroundColor: brandColor }"
+          @click="emit('view-all', location.restaurant?.slug)"
+        >
+          View Full Menu
+          <svg class="btn-arrow" viewBox="0 0 20 20" fill="currentColor">
+            <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -147,26 +181,26 @@ onMounted(() => {
   z-index: 10;
   display: flex;
   align-items: flex-end;
+  transition: background-color 350ms ease;
 }
 
 .sheet {
   width: 100%;
-  max-height: 60dvh;
   background-color: var(--color-surface-elevated);
   border-radius: 16px 16px 0 0;
-  padding: 0 16px calc(72px + env(safe-area-inset-bottom));
-  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15);
-  animation: slideUp 250ms ease-out;
-  overflow-y: auto;
+  /* Top shadow for depth + bottom shadow to cover rubber band gap */
+  box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.15), 0 200px 0 0 var(--color-surface-elevated);
+  overflow: hidden;
 }
 
-@keyframes slideUp {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
+.sheet-drag-area {
+  cursor: grab;
+  touch-action: none;
+  padding: 0 16px;
+}
+
+.sheet-drag-area:active {
+  cursor: grabbing;
 }
 
 .sheet-handle {
@@ -180,6 +214,10 @@ onMounted(() => {
   height: 4px;
   border-radius: 2px;
   background-color: var(--color-border);
+}
+
+.sheet-body {
+  padding: 0 16px 24px;
 }
 
 .sheet-header {

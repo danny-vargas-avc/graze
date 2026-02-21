@@ -1,8 +1,9 @@
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getByoComponents } from '../api/restaurants'
 import { useConfigStore } from '../stores/config'
+import { useSheetDrag } from '../composables/useSheetDrag'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ErrorState from '../components/ErrorState.vue'
 
@@ -101,8 +102,22 @@ const hasExtendedNutrition = computed(() => {
   )
 })
 
-// Show nutrition sheet
-const showNutrition = ref(false)
+// Draggable nutrition sheet
+const barHeight = 55
+const expandedHeight = Math.min(window.innerHeight * 0.7, 600)
+
+const { handleRef: byoHandleRef, sheetStyle: byoSheetStyle, currentHeight: byoHeight, isDragging: byoDragging, snapTo: byoSnapTo } = useSheetDrag({
+  snapPoints: [barHeight, expandedHeight],
+  initialSnap: 0,
+})
+
+const showNutrition = computed(() => byoHeight.value > barHeight + 20)
+
+const byoBarStyle = computed(() => ({
+  maxHeight: `${byoHeight.value}px`,
+  transition: byoDragging.value ? 'none' : `max-height 350ms cubic-bezier(0.32, 0.72, 0, 1)`,
+  overflow: 'hidden',
+}))
 
 onMounted(async () => {
   try {
@@ -162,7 +177,7 @@ function formatQty(qty) {
 
 function clearAll() {
   Object.keys(quantities).forEach(key => delete quantities[key])
-  showNutrition.value = false
+  byoSnapTo(0)
 }
 
 function retry() {
@@ -259,8 +274,8 @@ function retry() {
 
       <!-- Sticky bottom bar with running total -->
       <Transition name="slide-up">
-        <div v-if="hasSelection" class="sticky-bar">
-          <div class="bar-summary" @click="showNutrition = !showNutrition">
+        <div v-if="hasSelection" class="sticky-bar" :style="byoBarStyle">
+          <div ref="byoHandleRef" class="bar-summary" @click="byoSnapTo(showNutrition ? 0 : 1)">
             <div class="bar-left">
               <span class="bar-count">{{ selectedItems.length }} item{{ selectedItems.length > 1 ? 's' : '' }}</span>
               <span class="bar-cals">{{ totals.calories }} cal</span>
@@ -278,8 +293,7 @@ function retry() {
           </div>
 
           <!-- Expanded nutrition sheet -->
-          <Transition name="expand">
-            <div v-if="showNutrition" class="nutrition-sheet">
+            <div class="nutrition-sheet">
               <!-- Calorie hero -->
               <div class="calorie-hero">
                 <span class="cal-number">{{ totals.calories }}</span>
@@ -370,7 +384,6 @@ function retry() {
                 </div>
               </div>
             </div>
-          </Transition>
         </div>
       </Transition>
     </template>
@@ -666,8 +679,7 @@ function retry() {
   border-top: 1px solid var(--color-border);
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.12);
   border-radius: 16px 16px 0 0;
-  max-height: calc(100dvh - 120px);
-  overflow-y: auto;
+  overflow: hidden;
 }
 
 .bar-summary {
@@ -675,11 +687,16 @@ function retry() {
   align-items: center;
   justify-content: space-between;
   padding: 14px 20px;
-  cursor: pointer;
+  cursor: grab;
   position: sticky;
   top: 0;
   background: var(--color-surface-elevated);
   z-index: 1;
+  touch-action: none;
+}
+
+.bar-summary:active {
+  cursor: grabbing;
 }
 
 .bar-left {
@@ -741,6 +758,7 @@ function retry() {
 /* ---- Nutrition sheet (inside sticky bar) ---- */
 .nutrition-sheet {
   padding: 0 20px 20px;
+  overflow-y: auto;
 }
 
 /* Reuse DishDetailView nutrition styles */
@@ -946,24 +964,6 @@ function retry() {
 .slide-up-leave-to {
   transform: translateY(100%);
   opacity: 0;
-}
-
-.expand-enter-active,
-.expand-leave-active {
-  transition: max-height 300ms ease, opacity 200ms ease;
-  overflow: hidden;
-}
-
-.expand-enter-from,
-.expand-leave-to {
-  max-height: 0;
-  opacity: 0;
-}
-
-.expand-enter-to,
-.expand-leave-from {
-  max-height: 800px;
-  opacity: 1;
 }
 
 /* ---- Dark mode adjustments ---- */
