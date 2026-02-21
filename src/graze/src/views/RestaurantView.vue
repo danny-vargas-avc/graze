@@ -246,11 +246,12 @@ function setCategory(cat) {
 }
 
 .banner-logo {
-  max-height: 56px;
+  max-height: 48px;
   max-width: 200px;
   object-fit: contain;
-  filter: brightness(0) invert(1);
-  opacity: 0.85;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 6px 12px;
   margin-bottom: 14px;
 }
 

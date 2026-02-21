@@ -107,13 +107,14 @@ const hasIcon = computed(() => !!iconUrl.value)
 }
 
 .header-logo {
-  max-height: 60px;
-  max-width: 80%;
+  max-height: 48px;
+  max-width: 70%;
   object-fit: contain;
-  filter: brightness(0) invert(1);
-  opacity: 0.9;
   position: relative;
   z-index: 1;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 10px;
+  padding: 6px 12px;
 }
 
 .logo-placeholder {
@@ -204,6 +205,6 @@ const hasIcon = computed(() => !!iconUrl.value)
 }
 
 .full-width .header-logo {
-  max-height: 48px;
+  max-height: 40px;
 }
 </style>

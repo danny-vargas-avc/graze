@@ -311,6 +311,11 @@ class Command(BaseCommand):
 
             self.stdout.write(f'\n{restaurant.name} ({slug}):')
 
+            if not restaurant.has_byo:
+                restaurant.has_byo = True
+                restaurant.save(update_fields=['has_byo'])
+                self.stdout.write(f'  Enabled has_byo flag')
+
             for i, comp in enumerate(components):
                 category, name, calories, protein, carbs, fat, fiber, sodium, sugar, saturated_fat = comp
 
