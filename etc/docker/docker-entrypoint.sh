@@ -13,7 +13,6 @@ python manage.py migrate --noinput
 
 echo "==> Importing data..."
 python manage.py import_data
-python manage.py import_locations
 python manage.py import_byo
 
 echo "==> Starting gunicorn..."
