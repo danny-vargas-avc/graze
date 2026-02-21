@@ -394,7 +394,7 @@ function retry() {
 .byo-view {
   max-width: 640px;
   margin: 0 auto;
-  padding-bottom: 200px;
+  padding-bottom: 120px;
 }
 
 /* ---- Header ---- */
@@ -669,7 +669,7 @@ function retry() {
 /* ---- Sticky bottom bar ---- */
 .sticky-bar {
   position: fixed;
-  bottom: calc(60px + env(safe-area-inset-bottom));
+  bottom: env(safe-area-inset-bottom);
   left: 0;
   right: 0;
   max-width: 640px;

@@ -15,21 +15,19 @@ const routes = [
   {
     path: '/home',
     name: 'home',
+    meta: { headerMode: 'home' },
     component: () => import('./views/HomeView.vue'),
   },
   {
     path: '/map',
     name: 'map-explore',
+    meta: { headerMode: 'back', title: 'Map' },
     component: () => import('./views/MapExploreView.vue'),
-  },
-  {
-    path: '/favorites',
-    name: 'favorites',
-    component: () => import('./views/FavoritesView.vue'),
   },
   {
     path: '/profile',
     name: 'profile',
+    meta: { headerMode: 'back', title: 'Settings' },
     component: () => import('./views/ProfileView.vue'),
   },
   {

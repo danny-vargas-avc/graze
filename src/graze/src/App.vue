@@ -2,11 +2,12 @@
 import { computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
-import BottomNav from './components/BottomNav.vue'
 import { useTransitionStore } from './stores/transition'
 import { useConfigStore } from './stores/config'
+import { useTheme } from './composables/useTheme'
 
 const route = useRoute()
+useTheme()
 const transitionStore = useTransitionStore()
 const configStore = useConfigStore()
 const isFullscreen = computed(() => route.name === 'landing' || route.name === 'loading')
@@ -55,7 +56,6 @@ onUnmounted(() => {
           </transition>
         </router-view>
       </main>
-      <BottomNav />
     </div>
   </div>
 </template>
@@ -119,12 +119,6 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Mobile: account for bottom nav */
-@media (max-width: 768px) {
-  .app-main {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom));
-  }
-}
 
 .app-main:focus {
   outline: none;

@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDish } from '../api/dishes'
 import { useConfigStore } from '../stores/config'
-import { useFavoritesStore } from '../stores/favorites'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ErrorState from '../components/ErrorState.vue'
 import LazyImage from '../components/LazyImage.vue'
@@ -11,7 +10,6 @@ import LazyImage from '../components/LazyImage.vue'
 const route = useRoute()
 const router = useRouter()
 const configStore = useConfigStore()
-const favoritesStore = useFavoritesStore()
 
 const dish = ref(null)
 const loading = ref(true)
@@ -25,11 +23,6 @@ const brandColor = computed(() => {
 const restaurantLogoUrl = computed(() => {
   if (!dish.value) return null
   return configStore.getRestaurantIcon(dish.value.restaurant?.slug) || dish.value.restaurant?.logo_url
-})
-
-const isFavorite = computed(() => {
-  if (!dish.value) return false
-  return favoritesStore.isFavorite(dish.value.id)
 })
 
 const hasExtendedNutrition = computed(() => {
@@ -54,12 +47,6 @@ onMounted(async () => {
 
 function goBack() {
   router.back()
-}
-
-function toggleFavorite() {
-  if (dish.value) {
-    favoritesStore.toggle(dish.value.id)
-  }
 }
 
 function retry() {
@@ -89,16 +76,6 @@ function retry() {
           <button class="nav-btn back-btn" @click="goBack" aria-label="Go back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            class="nav-btn fav-btn"
-            :class="{ 'is-faved': isFavorite }"
-            @click="toggleFavorite"
-            aria-label="Toggle favorite"
-          >
-            <svg viewBox="0 0 24 24" class="heart-icon">
-              <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
             </svg>
           </button>
         </div>
@@ -336,43 +313,6 @@ function retry() {
 
 .back-btn:hover {
   background: rgba(0, 0, 0, 0.7);
-}
-
-/* Favorite button — translucent bg, heart always rendered */
-.fav-btn {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-}
-
-.heart-icon {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  transition: fill 200ms ease, stroke 200ms ease, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.fav-btn:hover .heart-icon {
-  stroke: #ff4d6a;
-}
-
-.is-faved .heart-icon {
-  fill: #ff4d6a;
-  stroke: #ff4d6a;
-  transform: scale(1.1);
-}
-
-/* Pop keyframe for the heart on toggle */
-@keyframes heart-pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.3); }
-  60% { transform: scale(0.95); }
-  100% { transform: scale(1.1); }
-}
-
-.is-faved .heart-icon {
-  animation: heart-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ---- Content ---- */
