@@ -2,6 +2,7 @@
 set -e
 
 echo "==> Copying frontend build to shared volume..."
+rm -rf /app/frontend-serve/*
 cp -r /app/frontend-dist/* /app/frontend-serve/
 
 echo "==> Collecting static files..."
