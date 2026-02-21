@@ -10,6 +10,11 @@ export async function getRestaurant(slug) {
   return response.data
 }
 
+export async function getByoComponents(slug) {
+  const response = await apiClient.get(`/restaurants/${slug}/byo`)
+  return response.data
+}
+
 export async function getStats() {
   const response = await apiClient.get('/stats')
   return response.data

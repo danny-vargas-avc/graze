@@ -42,6 +42,11 @@ const routes = [
     name: 'restaurant-detail',
     component: () => import('./views/RestaurantView.vue'),
   },
+  {
+    path: '/restaurant/:slug/byo',
+    name: 'byo-calculator',
+    component: () => import('./views/ByoCalculatorView.vue'),
+  },
   // Redirect old routes
   {
     path: '/search',

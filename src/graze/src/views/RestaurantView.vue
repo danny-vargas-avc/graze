@@ -123,6 +123,31 @@ function setCategory(cat) {
       <div class="dishes-area">
         <p class="results-count">{{ filteredDishes.length }} items</p>
         <div class="dishes-grid">
+          <!-- BYO Calculator card -->
+          <RouterLink
+            v-if="restaurant.has_byo && !activeCategory"
+            :to="{ name: 'byo-calculator', params: { slug: restaurant.slug } }"
+            class="dish-card byo-card"
+          >
+            <div class="brand-accent" :style="{ backgroundColor: brandColor }"></div>
+            <div class="card-content">
+              <div class="byo-icon-box" :style="{ backgroundColor: brandColor }">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm2.498-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zM8.25 6h7.5v2.25h-7.5V6zM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0012 2.25z" />
+                </svg>
+              </div>
+              <div class="card-text">
+                <div class="restaurant-row">
+                  <p class="restaurant-name">{{ restaurant.name }}</p>
+                </div>
+                <h3 class="dish-name">Build Your Own Bowl</h3>
+                <p class="byo-sub">Calculate nutrition for a custom meal</p>
+              </div>
+              <svg class="byo-arrow" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+              </svg>
+            </div>
+          </RouterLink>
           <DishCard
             v-for="dish in filteredDishes"
             :key="dish.id"
@@ -265,6 +290,92 @@ function setCategory(cat) {
 
 .meta-link:hover {
   text-decoration: underline;
+}
+
+/* ---- BYO Card (in grid) ---- */
+.byo-card {
+  display: flex;
+  background-color: var(--color-surface-elevated);
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  overflow: hidden;
+  text-decoration: none;
+  transition: all 200ms ease;
+}
+
+.byo-card:hover {
+  border-color: var(--color-primary);
+  box-shadow: var(--shadow-md);
+}
+
+.byo-card .brand-accent {
+  width: 4px;
+  flex-shrink: 0;
+}
+
+.byo-card .card-content {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  flex: 1;
+  min-width: 0;
+}
+
+.byo-icon-box {
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+}
+
+.byo-icon-box svg {
+  width: 22px;
+  height: 22px;
+}
+
+.byo-card .card-text {
+  flex: 1;
+  min-width: 0;
+}
+
+.byo-card .restaurant-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+
+.byo-card .restaurant-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.byo-card .dish-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+}
+
+.byo-sub {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
+}
+
+.byo-arrow {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+  align-self: center;
 }
 
 .category-tabs {

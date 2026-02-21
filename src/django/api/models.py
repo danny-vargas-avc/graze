@@ -11,6 +11,7 @@ class Restaurant(models.Model):
     logo = models.ImageField(upload_to='restaurants/logos/', blank=True, help_text='Main logo image')
     icon = models.ImageField(upload_to='restaurants/icons/', blank=True, help_text='Square icon for map markers and thumbnails')
     brand_color = models.CharField(max_length=7, blank=True, default='#3B82F6', help_text='Hex color for map markers (e.g., #FF5733)')
+    has_byo = models.BooleanField(default=False, help_text='Restaurant offers build-your-own bowls/meals')
     nutrition_source_url = models.URLField(blank=True)
     item_count = models.PositiveIntegerField(default=0)
     location_count = models.PositiveIntegerField(default=0)
@@ -88,6 +89,41 @@ class MenuItem(models.Model):
         elif ratio >= self.DENSITY_THRESHOLDS['average']:
             return 'average'
         return 'low'
+
+
+class ByoComponent(models.Model):
+    """Individual ingredients for build-your-own meal calculator."""
+
+    CATEGORY_CHOICES = [
+        ('base', 'Base'),
+        ('protein', 'Protein'),
+        ('topping', 'Topping'),
+        ('dressing', 'Dressing/Sauce'),
+        ('extra', 'Extra'),
+    ]
+
+    restaurant = models.ForeignKey(Restaurant, on_delete=models.CASCADE, related_name='byo_components')
+    category = models.CharField(max_length=20, choices=CATEGORY_CHOICES)
+    name = models.CharField(max_length=255)
+
+    calories = models.PositiveIntegerField(default=0)
+    protein = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    carbs = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+    fat = models.DecimalField(max_digits=5, decimal_places=1, default=0)
+
+    fiber = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    sodium = models.PositiveIntegerField(null=True, blank=True)
+    sugar = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+    saturated_fat = models.DecimalField(max_digits=5, decimal_places=1, null=True, blank=True)
+
+    is_available = models.BooleanField(default=True)
+    sort_order = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ['category', 'sort_order', 'name']
+
+    def __str__(self):
+        return f"{self.restaurant.name} - {self.get_category_display()}: {self.name}"
 
 
 class DataFlag(models.Model):

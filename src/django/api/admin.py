@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import mark_safe
 from unfold.admin import ModelAdmin
-from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag
+from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag, ByoComponent
 
 
 @admin.register(Restaurant)
@@ -54,6 +54,13 @@ class RestaurantLocationAdmin(ModelAdmin):
     list_filter = ['restaurant', 'state', 'is_active', 'data_source']
     search_fields = ['name', 'city', 'address', 'restaurant__name']
     readonly_fields = ['created_at', 'updated_at']
+
+
+@admin.register(ByoComponent)
+class ByoComponentAdmin(ModelAdmin):
+    list_display = ['name', 'restaurant', 'category', 'calories', 'protein', 'carbs', 'fat', 'is_available']
+    list_filter = ['restaurant', 'category', 'is_available']
+    search_fields = ['name', 'restaurant__name']
 
 
 @admin.register(LocationFlag)

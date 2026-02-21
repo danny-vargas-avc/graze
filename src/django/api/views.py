@@ -6,11 +6,12 @@ from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.exceptions import ValidationError
 
-from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag
+from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag, ByoComponent
 from .serializers import (
     RestaurantListSerializer, RestaurantDetailSerializer,
     MenuItemListSerializer, MenuItemDetailSerializer, DataFlagSerializer,
     LocationListSerializer, LocationDetailSerializer, LocationFlagSerializer,
+    ByoComponentSerializer,
 )
 
 
@@ -261,6 +262,32 @@ class LocationDetailView(generics.RetrieveAPIView):
     """Retrieve detailed information about a single restaurant location."""
     queryset = RestaurantLocation.objects.filter(is_active=True).select_related('restaurant')
     serializer_class = LocationDetailSerializer
+
+
+class ByoComponentListView(APIView):
+    """List BYO components for a restaurant, grouped by category."""
+
+    def get(self, request, slug):
+        restaurant = Restaurant.objects.filter(slug=slug, has_byo=True).first()
+        if not restaurant:
+            return Response({'detail': 'Restaurant not found or does not support BYO.'},
+                            status=status.HTTP_404_NOT_FOUND)
+
+        components = ByoComponent.objects.filter(restaurant=restaurant, is_available=True)
+        serializer = ByoComponentSerializer(components, many=True)
+
+        # Group by category
+        grouped = {}
+        for item in serializer.data:
+            cat = item['category']
+            if cat not in grouped:
+                grouped[cat] = []
+            grouped[cat].append(item)
+
+        return Response({
+            'restaurant': RestaurantListSerializer(restaurant, context={'request': request}).data,
+            'categories': grouped,
+        })
 
 
 class LocationFlagCreateView(generics.CreateAPIView):

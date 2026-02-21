@@ -4,6 +4,7 @@ from .views import (
     RestaurantListView, RestaurantDetailView,
     StatsView, DataFlagCreateView,
     LocationListView, LocationDetailView, LocationFlagCreateView,
+    ByoComponentListView,
 )
 
 urlpatterns = [
@@ -16,4 +17,5 @@ urlpatterns = [
     path('stats', StatsView.as_view(), name='stats'),
     path('flags', DataFlagCreateView.as_view(), name='flag-create'),
     path('location-flags', LocationFlagCreateView.as_view(), name='location-flag-create'),
+    path('restaurants/<slug:slug>/byo', ByoComponentListView.as_view(), name='byo-components'),
 ]

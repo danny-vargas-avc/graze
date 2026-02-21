@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag
+from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag, ByoComponent
 
 
 class RestaurantListSerializer(serializers.ModelSerializer):
@@ -7,7 +7,7 @@ class RestaurantListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'slug', 'logo_url', 'item_count']
+        fields = ['id', 'name', 'slug', 'logo_url', 'item_count', 'has_byo']
 
     def get_logo_url(self, obj):
         if obj.logo:
@@ -20,7 +20,7 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'slug', 'website_url', 'logo_url', 'nutrition_source_url', 'item_count', 'last_updated']
+        fields = ['id', 'name', 'slug', 'website_url', 'logo_url', 'nutrition_source_url', 'item_count', 'has_byo', 'last_updated']
 
     def get_logo_url(self, obj):
         if obj.logo:
@@ -46,6 +46,13 @@ class MenuItemDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = MenuItem
         fields = ['id', 'name', 'restaurant', 'category', 'serving_size', 'calories', 'protein', 'carbs', 'fat', 'fiber', 'sodium', 'sugar', 'saturated_fat', 'protein_per_100cal', 'density_label', 'image_url', 'is_vegetarian', 'is_vegan', 'is_gluten_free', 'source_url', 'last_verified']
+
+
+class ByoComponentSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ByoComponent
+        fields = ['id', 'category', 'name', 'calories', 'protein', 'carbs', 'fat',
+                  'fiber', 'sodium', 'sugar', 'saturated_fat']
 
 
 class DataFlagSerializer(serializers.ModelSerializer):
