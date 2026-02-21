@@ -70,7 +70,7 @@ Three Docker services: `db` (Postgres 16), `web` (Django + gunicorn), `nginx`.
    ```
 4. Create superuser:
    ```bash
-   ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml exec web python manage.py createsuperuser"
+   ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production exec web python manage.py createsuperuser"
    ```
 5. Import data (dump from local SQLite first):
    ```bash
@@ -79,7 +79,7 @@ Three Docker services: `db` (Postgres 16), `web` (Django + gunicorn), `nginx`.
 
    # Remote: load data
    scp src/django/data.json graze:/opt/graze/src/django/
-   ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml exec web python manage.py loaddata data.json"
+   ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production exec web python manage.py loaddata data.json"
    ```
 6. Copy media files:
    ```bash
@@ -101,11 +101,11 @@ git push                  # push changes
 
 ```bash
 # View logs
-ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml logs web --tail 50"
+ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production logs web --tail 50"
 
 # Django shell
-ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml exec web python manage.py shell"
+ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production exec web python manage.py shell"
 
 # Container status
-ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml ps"
+ssh graze "cd /opt/graze && docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production ps"
 ```

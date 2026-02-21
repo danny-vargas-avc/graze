@@ -5,7 +5,7 @@ set -e
 
 VPS_HOST="graze"
 DEPLOY_PATH="/opt/graze"
-COMPOSE="docker compose -f etc/docker/docker-compose.yml"
+COMPOSE="docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production"
 
 echo "==> Pulling latest code on $VPS_HOST..."
 ssh "$VPS_HOST" "cd $DEPLOY_PATH && git pull"
