@@ -41,6 +41,7 @@ const hasIcon = computed(() => !!iconUrl.value)
     :to="{ name: 'restaurant-detail', params: { slug: restaurant.slug } }"
     class="restaurant-card"
     :class="{ 'full-width': fullWidth }"
+    :style="fullWidth ? { borderLeftColor: brandColor } : {}"
   >
     <!-- Gradient header with logo -->
     <div class="card-header" :style="gradientStyle">
@@ -200,11 +201,16 @@ const hasIcon = computed(() => !!iconUrl.value)
   color: var(--color-text-tertiary);
 }
 
-.full-width .card-header {
-  height: 80px;
+.full-width {
+  border-left-width: 4px;
+  border-left-style: solid;
 }
 
-.full-width .header-logo {
-  max-height: 40px;
+.full-width .card-header {
+  display: none;
+}
+
+.full-width .card-body {
+  padding: 14px 16px;
 }
 </style>

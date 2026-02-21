@@ -1,13 +1,22 @@
 <script setup>
-import { onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { useRestaurantsStore } from '../stores/restaurants'
 import RestaurantCard from '../components/RestaurantCard.vue'
+import SearchBar from '../components/SearchBar.vue'
 
 const router = useRouter()
 const restaurantsStore = useRestaurantsStore()
 const { restaurants, loading } = storeToRefs(restaurantsStore)
+
+const searchQuery = ref('')
+
+const filteredRestaurants = computed(() => {
+  if (!searchQuery.value.trim()) return restaurants.value
+  const q = searchQuery.value.trim().toLowerCase()
+  return restaurants.value.filter(r => r.name.toLowerCase().includes(q))
+})
 
 onMounted(() => {
   restaurantsStore.fetchRestaurants()
@@ -28,8 +37,12 @@ function goBack() {
       </button>
       <div>
         <h1 class="page-title">Restaurants</h1>
-        <p v-if="restaurants.length" class="page-subtitle">{{ restaurants.length }} restaurants</p>
+        <p v-if="restaurants.length" class="page-subtitle">{{ filteredRestaurants.length }} of {{ restaurants.length }} restaurants</p>
       </div>
+    </div>
+
+    <div class="search-section">
+      <SearchBar v-model="searchQuery" placeholder="Filter restaurants..." />
     </div>
 
     <div class="list-content">
@@ -39,13 +52,18 @@ function goBack() {
       </div>
 
       <!-- Restaurant list -->
-      <div v-else class="restaurants-list">
+      <div v-else-if="filteredRestaurants.length" class="restaurants-list">
         <RestaurantCard
-          v-for="restaurant in restaurants"
+          v-for="restaurant in filteredRestaurants"
           :key="restaurant.slug"
           :restaurant="restaurant"
           full-width
         />
+      </div>
+
+      <!-- No results -->
+      <div v-else class="empty-state">
+        <p>No restaurants match "{{ searchQuery }}"</p>
       </div>
     </div>
   </div>
@@ -101,8 +119,19 @@ function goBack() {
   margin-top: 2px;
 }
 
+.search-section {
+  padding: 0 16px 12px;
+}
+
 .list-content {
   padding: 0 16px 24px;
+}
+
+.empty-state {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--color-text-tertiary);
+  font-size: 14px;
 }
 
 .restaurants-list {
