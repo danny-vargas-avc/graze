@@ -1,0 +1,131 @@
+<script setup>
+import { onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { storeToRefs } from 'pinia'
+import { useRestaurantsStore } from '../stores/restaurants'
+import RestaurantCard from '../components/RestaurantCard.vue'
+
+const router = useRouter()
+const restaurantsStore = useRestaurantsStore()
+const { restaurants, loading } = storeToRefs(restaurantsStore)
+
+onMounted(() => {
+  restaurantsStore.fetchRestaurants()
+})
+
+function goBack() {
+  router.back()
+}
+</script>
+
+<template>
+  <div class="restaurants-list-view">
+    <div class="list-header">
+      <button class="back-btn" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+      </button>
+      <div>
+        <h1 class="page-title">Restaurants</h1>
+        <p v-if="restaurants.length" class="page-subtitle">{{ restaurants.length }} restaurants</p>
+      </div>
+    </div>
+
+    <div class="list-content">
+      <!-- Loading -->
+      <div v-if="loading" class="loading-state">
+        <div v-for="i in 4" :key="i" class="skeleton-card"></div>
+      </div>
+
+      <!-- Restaurant list -->
+      <div v-else class="restaurants-list">
+        <RestaurantCard
+          v-for="restaurant in restaurants"
+          :key="restaurant.slug"
+          :restaurant="restaurant"
+          full-width
+        />
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.restaurants-list-view {
+  height: 100%;
+  overflow-y: auto;
+}
+
+.list-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 16px 12px;
+}
+
+.back-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-elevated);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+  transition: background 150ms ease;
+}
+
+.back-btn:hover {
+  background: var(--color-surface);
+}
+
+.back-btn svg {
+  width: 18px;
+  height: 18px;
+}
+
+.page-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+}
+
+.page-subtitle {
+  font-size: 14px;
+  color: var(--color-text-secondary);
+  margin-top: 2px;
+}
+
+.list-content {
+  padding: 0 16px 24px;
+}
+
+.restaurants-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.loading-state {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.skeleton-card {
+  height: 140px;
+  border-radius: 12px;
+  background: var(--color-surface);
+  animation: pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+</style>

@@ -85,7 +85,7 @@ function clear() {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 12px;
+  left: 16px;
   display: flex;
   align-items: center;
   pointer-events: none;
@@ -101,8 +101,8 @@ function clear() {
   width: 100%;
   padding: 12px 40px 12px 44px;
   border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background-color: var(--color-surface-elevated);
+  border-radius: 24px;
+  background-color: var(--color-surface);
   color: var(--color-text-primary);
   font-size: 14px;
   transition: all 200ms ease;
@@ -112,18 +112,31 @@ function clear() {
   color: var(--color-text-tertiary);
 }
 
+.search-input::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+  display: none;
+}
+
+.search-input:-webkit-autofill,
+.search-input:-webkit-autofill:hover,
+.search-input:-webkit-autofill:focus {
+  -webkit-box-shadow: 0 0 0 1000px var(--color-surface) inset;
+  -webkit-text-fill-color: var(--color-text-primary);
+  transition: background-color 5000s ease-in-out 0s;
+}
+
 .search-input:focus {
   outline: none;
   border-color: var(--color-primary);
   background-color: var(--color-background);
-  box-shadow: 0 0 0 3px rgba(var(--color-primary), 0.1);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-primary) 12%, transparent);
 }
 
 .clear-button {
   position: absolute;
   top: 0;
   bottom: 0;
-  right: 8px;
+  right: 12px;
   display: flex;
   align-items: center;
   padding: 8px;
