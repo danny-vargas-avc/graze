@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getDish } from '../api/dishes'
 import { useConfigStore } from '../stores/config'
-import { useFavoritesStore } from '../stores/favorites'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ErrorState from '../components/ErrorState.vue'
 import LazyImage from '../components/LazyImage.vue'
@@ -11,7 +10,6 @@ import LazyImage from '../components/LazyImage.vue'
 const route = useRoute()
 const router = useRouter()
 const configStore = useConfigStore()
-const favoritesStore = useFavoritesStore()
 
 const dish = ref(null)
 const loading = ref(true)
@@ -25,11 +23,6 @@ const brandColor = computed(() => {
 const restaurantLogoUrl = computed(() => {
   if (!dish.value) return null
   return configStore.getRestaurantIcon(dish.value.restaurant?.slug) || dish.value.restaurant?.logo_url
-})
-
-const isFavorite = computed(() => {
-  if (!dish.value) return false
-  return favoritesStore.isFavorite(dish.value.id)
 })
 
 const hasExtendedNutrition = computed(() => {
@@ -53,12 +46,10 @@ onMounted(async () => {
 })
 
 function goBack() {
-  router.back()
-}
-
-function toggleFavorite() {
-  if (dish.value) {
-    favoritesStore.toggle(dish.value.id)
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/home')
   }
 }
 
@@ -82,6 +73,14 @@ function retry() {
 
     <!-- Content -->
     <template v-else-if="dish">
+      <!-- Desktop back bar (hidden on mobile) -->
+      <button class="desktop-back" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+
       <!-- Hero area -->
       <div class="hero" :class="{ 'hero-no-image': !dish.image_url }">
         <!-- Floating nav buttons -->
@@ -89,16 +88,6 @@ function retry() {
           <button class="nav-btn back-btn" @click="goBack" aria-label="Go back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-          <button
-            class="nav-btn fav-btn"
-            :class="{ 'is-faved': isFavorite }"
-            @click="toggleFavorite"
-            aria-label="Toggle favorite"
-          >
-            <svg viewBox="0 0 24 24" class="heart-icon">
-              <path d="M11.645 20.91l-.007-.003-.022-.012a15.247 15.247 0 01-.383-.218 25.18 25.18 0 01-4.244-3.17C4.688 15.36 2.25 12.174 2.25 8.25 2.25 5.322 4.714 3 7.688 3A5.5 5.5 0 0112 5.052 5.5 5.5 0 0116.313 3c2.973 0 5.437 2.322 5.437 5.25 0 3.925-2.438 7.111-4.739 9.256a25.175 25.175 0 01-4.244 3.17 15.247 15.247 0 01-.383.219l-.022.012-.007.004-.003.001a.752.752 0 01-.704 0l-.003-.001z" />
             </svg>
           </button>
         </div>
@@ -336,43 +325,6 @@ function retry() {
 
 .back-btn:hover {
   background: rgba(0, 0, 0, 0.7);
-}
-
-/* Favorite button — translucent bg, heart always rendered */
-.fav-btn {
-  background: rgba(0, 0, 0, 0.55);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
-}
-
-.heart-icon {
-  fill: none;
-  stroke: #fff;
-  stroke-width: 2;
-  transition: fill 200ms ease, stroke 200ms ease, transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1);
-}
-
-.fav-btn:hover .heart-icon {
-  stroke: #ff4d6a;
-}
-
-.is-faved .heart-icon {
-  fill: #ff4d6a;
-  stroke: #ff4d6a;
-  transform: scale(1.1);
-}
-
-/* Pop keyframe for the heart on toggle */
-@keyframes heart-pop {
-  0% { transform: scale(1); }
-  30% { transform: scale(1.3); }
-  60% { transform: scale(0.95); }
-  100% { transform: scale(1.1); }
-}
-
-.is-faved .heart-icon {
-  animation: heart-pop 400ms cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ---- Content ---- */
@@ -697,5 +649,68 @@ function retry() {
 :root[data-theme='dark'] .density-badge.average {
   background-color: #431407;
   color: #fb923c;
+}
+
+/* ---- Desktop back button ---- */
+.desktop-back {
+  display: none;
+}
+
+/* ---- Desktop layout ---- */
+@media (min-width: 1024px) {
+  .detail-view {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 40px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 48px;
+  }
+
+  .desktop-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    grid-column: 1 / -1;
+    padding: 20px 0 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    transition: color 150ms ease;
+  }
+
+  .desktop-back:hover {
+    color: var(--color-text-primary);
+  }
+
+  .desktop-back svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .floating-nav {
+    display: none;
+  }
+
+  .hero {
+    height: 480px;
+    border-radius: 16px;
+    position: sticky;
+    top: 80px;
+    align-self: flex-start;
+  }
+
+  .hero-no-image {
+    height: 320px;
+  }
+
+  .content {
+    padding: 0;
+    max-width: none;
+  }
 }
 </style>

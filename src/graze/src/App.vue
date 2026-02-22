@@ -1,15 +1,21 @@
 <script setup>
-import { computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, provide, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import AppHeader from './components/AppHeader.vue'
-import BottomNav from './components/BottomNav.vue'
+import SettingsModal from './views/SettingsView.vue'
 import { useTransitionStore } from './stores/transition'
 import { useConfigStore } from './stores/config'
+import { useTheme } from './composables/useTheme'
 
 const route = useRoute()
+useTheme()
 const transitionStore = useTransitionStore()
 const configStore = useConfigStore()
 const isFullscreen = computed(() => route.name === 'landing' || route.name === 'loading')
+const showHeader = computed(() => !route.meta.hideHeader)
+
+const showSettings = ref(false)
+provide('showSettings', showSettings)
 
 let versionCheckInterval = null
 
@@ -47,7 +53,7 @@ onUnmounted(() => {
     <!-- App pages get header + bottom nav wrapper -->
     <div v-else class="app-wrapper">
       <a href="#main-content" class="skip-link">Skip to main content</a>
-      <AppHeader />
+      <AppHeader v-if="showHeader" />
       <main id="main-content" class="app-main" tabindex="-1">
         <router-view v-slot="{ Component }">
           <transition name="fade" mode="out-in">
@@ -55,8 +61,12 @@ onUnmounted(() => {
           </transition>
         </router-view>
       </main>
-      <BottomNav />
     </div>
+
+    <!-- Settings modal -->
+    <Transition name="settings-modal">
+      <SettingsModal v-if="showSettings" @close="showSettings = false" />
+    </Transition>
   </div>
 </template>
 
@@ -99,6 +109,7 @@ onUnmounted(() => {
   overflow: hidden;
   background-color: var(--color-background);
   position: relative;
+  touch-action: manipulation;
 }
 
 .app-main {
@@ -119,14 +130,19 @@ onUnmounted(() => {
   opacity: 0;
 }
 
-/* Mobile: account for bottom nav */
-@media (max-width: 768px) {
-  .app-main {
-    padding-bottom: calc(60px + env(safe-area-inset-bottom));
-  }
-}
 
 .app-main:focus {
   outline: none;
+}
+
+/* Settings modal transition */
+.settings-modal-enter-active,
+.settings-modal-leave-active {
+  transition: opacity 200ms ease;
+}
+
+.settings-modal-enter-from,
+.settings-modal-leave-to {
+  opacity: 0;
 }
 </style>

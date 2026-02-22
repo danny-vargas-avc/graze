@@ -1,5 +1,5 @@
 <script setup>
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getByoComponents } from '../api/restaurants'
 import { useConfigStore } from '../stores/config'
@@ -16,6 +16,11 @@ const categories = ref({})
 const loading = ref(true)
 const error = ref(null)
 const quantities = reactive({}) // { [itemId]: quantity }
+
+// --- Desktop detection ---
+const isDesktop = ref(false)
+let desktopQuery = null
+function onDesktopChange(e) { isDesktop.value = e.matches }
 
 const brandColor = computed(() => {
   if (!restaurant.value) return '#06C167'
@@ -120,6 +125,10 @@ const byoBarStyle = computed(() => ({
 }))
 
 onMounted(async () => {
+  desktopQuery = window.matchMedia('(min-width: 1024px)')
+  isDesktop.value = desktopQuery.matches
+  desktopQuery.addEventListener('change', onDesktopChange)
+
   try {
     const data = await getByoComponents(route.params.slug)
     restaurant.value = data.restaurant
@@ -129,6 +138,10 @@ onMounted(async () => {
   } finally {
     loading.value = false
   }
+})
+
+onUnmounted(() => {
+  desktopQuery?.removeEventListener('change', onDesktopChange)
 })
 
 function goBack() {
@@ -203,6 +216,14 @@ function retry() {
 
     <!-- Content -->
     <template v-else-if="restaurant">
+      <!-- Desktop back bar (hidden on mobile) -->
+      <button class="desktop-back" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+
       <!-- Header -->
       <div class="byo-header" :style="{ background: `linear-gradient(135deg, ${brandColor}18, ${brandColor}08)` }">
         <div class="header-nav">
@@ -274,7 +295,7 @@ function retry() {
 
       <!-- Sticky bottom bar with running total -->
       <Transition name="slide-up">
-        <div v-if="hasSelection" class="sticky-bar" :style="byoBarStyle">
+        <div v-if="hasSelection" class="sticky-bar" :style="isDesktop ? {} : byoBarStyle">
           <div ref="byoHandleRef" class="bar-summary" @click="byoSnapTo(showNutrition ? 0 : 1)">
             <div class="bar-left">
               <span class="bar-count">{{ selectedItems.length }} item{{ selectedItems.length > 1 ? 's' : '' }}</span>
@@ -394,7 +415,7 @@ function retry() {
 .byo-view {
   max-width: 640px;
   margin: 0 auto;
-  padding-bottom: 200px;
+  padding-bottom: 120px;
 }
 
 /* ---- Header ---- */
@@ -669,7 +690,7 @@ function retry() {
 /* ---- Sticky bottom bar ---- */
 .sticky-bar {
   position: fixed;
-  bottom: calc(60px + env(safe-area-inset-bottom));
+  bottom: env(safe-area-inset-bottom);
   left: 0;
   right: 0;
   max-width: 640px;
@@ -985,5 +1006,104 @@ function retry() {
 
 :root[data-theme='dark'] .sticky-bar {
   box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.4);
+}
+
+/* ---- Desktop back button ---- */
+.desktop-back {
+  display: none;
+}
+
+/* ---- Desktop layout ---- */
+@media (min-width: 1024px) {
+  .byo-view {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 40px 40px;
+    display: grid;
+    grid-template-columns: 1fr 380px;
+    gap: 0 32px;
+  }
+
+  .desktop-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    grid-column: 1 / -1;
+    padding: 20px 0 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    transition: color 150ms ease;
+  }
+
+  .desktop-back:hover {
+    color: var(--color-text-primary);
+  }
+
+  .desktop-back svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .byo-header {
+    grid-column: 1;
+    border-radius: 16px;
+  }
+
+  .nav-btn {
+    display: none;
+  }
+
+  .header-nav {
+    justify-content: flex-end;
+  }
+
+  .ingredient-sections {
+    grid-column: 1;
+  }
+
+  .ingredient-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Nutrition sidebar (replaces sticky bottom bar) */
+  .sticky-bar {
+    position: sticky;
+    top: 80px;
+    grid-column: 2;
+    grid-row: 2 / span 2;
+    align-self: flex-start;
+    bottom: auto;
+    left: auto;
+    right: auto;
+    max-width: none;
+    border-radius: 16px;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow-md);
+    max-height: calc(100vh - 100px);
+    overflow-y: auto;
+  }
+
+  .bar-summary {
+    cursor: default;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  .bar-summary:active {
+    cursor: default;
+  }
+
+  .bar-expand {
+    display: none;
+  }
+
+  .nutrition-sheet {
+    max-height: none;
+  }
 }
 </style>

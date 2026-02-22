@@ -65,6 +65,14 @@ function setCategory(cat) {
 
     <!-- Content -->
     <template v-else-if="restaurant">
+      <!-- Desktop back bar (hidden on mobile) -->
+      <button class="desktop-back" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+
       <!-- Banner with logo -->
       <div class="banner" :style="{ background: `linear-gradient(135deg, ${brandColor}, ${brandColor}cc)` }">
         <button class="back-btn" @click="goBack">
@@ -434,9 +442,70 @@ function setCategory(cat) {
   }
 }
 
+/* ---- Desktop back button ---- */
+.desktop-back {
+  display: none;
+}
+
 @media (min-width: 1024px) {
+  .restaurant-view {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  .desktop-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 20px 0 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    transition: color 150ms ease;
+  }
+
+  .desktop-back:hover {
+    color: var(--color-text-primary);
+  }
+
+  .desktop-back svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .banner {
+    border-radius: 16px;
+    margin-top: 8px;
+  }
+
+  .back-btn {
+    display: none;
+  }
+
+  .category-tabs {
+    padding: 16px 0;
+    border-bottom: 1px solid var(--color-border);
+    background: none;
+  }
+
+  .dishes-area {
+    padding: 20px 0 40px;
+  }
+
   .dishes-grid {
     grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .dishes-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }
 </style>

@@ -53,7 +53,7 @@ const { sheetRef, handleRef, sheetStyle, currentHeight, snapTo, updateSnapPoints
 
 function measureAndOpen() {
   if (!sheetRef.value) return
-  const height = sheetRef.value.scrollHeight
+  const height = sheetRef.value.scrollHeight + 16
   updateSnapPoints([0, height])
   snapTo(1)
 }
@@ -78,11 +78,12 @@ async function loadDishes() {
     console.warn('Failed to load dishes for location:', error)
   } finally {
     loading.value = false
-    // Re-measure after content changes
+    // Re-measure and re-snap after content changes
     await nextTick()
     if (sheetRef.value) {
-      const height = sheetRef.value.scrollHeight
+      const height = sheetRef.value.scrollHeight + 16
       updateSnapPoints([0, height])
+      snapTo(1)
     }
   }
 }
@@ -217,7 +218,7 @@ onMounted(async () => {
 }
 
 .sheet-body {
-  padding: 0 16px calc(72px + env(safe-area-inset-bottom));
+  padding: 0 16px calc(16px + env(safe-area-inset-bottom));
 }
 
 .sheet-header {
