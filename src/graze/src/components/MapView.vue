@@ -455,17 +455,6 @@ onMounted(async () => {
   })
   map._themeObserver = observer
 
-  // Map controls
-  map.addControl(new mapboxgl.NavigationControl(), 'top-right')
-  map.addControl(
-    new mapboxgl.GeolocateControl({
-      positionOptions: { enableHighAccuracy: true },
-      trackUserLocation: true,
-      showUserHeading: true
-    }),
-    'top-right'
-  )
-
   // Map load
   map.on('load', async () => {
     await loadMarkerImages()

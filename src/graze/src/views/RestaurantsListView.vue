@@ -157,4 +157,60 @@ function goBack() {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
 }
+
+@media (min-width: 1024px) {
+  .restaurants-list-view {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 40px;
+  }
+
+  .back-btn {
+    display: none;
+  }
+
+  .list-header {
+    padding: 20px 0 12px;
+  }
+
+  .search-section {
+    padding: 0 0 16px;
+  }
+
+  .list-content {
+    padding: 0 0 40px;
+  }
+
+  .restaurants-list {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* Show gradient card headers on desktop */
+  .restaurants-list :deep(.restaurant-card.full-width) {
+    border-left-width: 1px;
+    border-left-color: var(--color-border);
+  }
+
+  .restaurants-list :deep(.full-width .card-header) {
+    display: flex;
+  }
+
+  .restaurants-list :deep(.full-width .card-body) {
+    padding: 12px;
+  }
+}
+
+@media (min-width: 1280px) {
+  .restaurants-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+@media (min-width: 1440px) {
+  .restaurants-list {
+    grid-template-columns: repeat(4, 1fr);
+  }
+}
 </style>

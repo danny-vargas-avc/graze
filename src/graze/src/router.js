@@ -20,34 +20,34 @@ const routes = [
   },
   {
     path: '/map',
-    name: 'map-explore',
-    meta: { headerMode: 'back', title: 'Map' },
-    component: () => import('./views/MapExploreView.vue'),
+    redirect: '/home',
   },
   {
-    path: '/profile',
-    name: 'profile',
-    meta: { headerMode: 'back', title: 'Settings' },
-    component: () => import('./views/ProfileView.vue'),
+    path: '/settings',
+    redirect: '/home',
   },
   {
     path: '/dish/:id',
     name: 'dish-detail',
+    meta: { hideHeader: true },
     component: () => import('./views/DishDetailView.vue'),
   },
   {
     path: '/restaurants',
     name: 'restaurants-list',
+    meta: { hideHeader: true },
     component: () => import('./views/RestaurantsListView.vue'),
   },
   {
     path: '/restaurant/:slug',
     name: 'restaurant-detail',
+    meta: { hideHeader: true },
     component: () => import('./views/RestaurantView.vue'),
   },
   {
     path: '/restaurant/:slug/byo',
     name: 'byo-calculator',
+    meta: { hideHeader: true },
     component: () => import('./views/ByoCalculatorView.vue'),
   },
   // Redirect old routes

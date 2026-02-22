@@ -46,7 +46,11 @@ onMounted(async () => {
 })
 
 function goBack() {
-  router.back()
+  if (window.history.length > 1) {
+    router.back()
+  } else {
+    router.push('/home')
+  }
 }
 
 function retry() {
@@ -69,6 +73,14 @@ function retry() {
 
     <!-- Content -->
     <template v-else-if="dish">
+      <!-- Desktop back bar (hidden on mobile) -->
+      <button class="desktop-back" @click="goBack">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+        </svg>
+        Back
+      </button>
+
       <!-- Hero area -->
       <div class="hero" :class="{ 'hero-no-image': !dish.image_url }">
         <!-- Floating nav buttons -->
@@ -637,5 +649,68 @@ function retry() {
 :root[data-theme='dark'] .density-badge.average {
   background-color: #431407;
   color: #fb923c;
+}
+
+/* ---- Desktop back button ---- */
+.desktop-back {
+  display: none;
+}
+
+/* ---- Desktop layout ---- */
+@media (min-width: 1024px) {
+  .detail-view {
+    max-width: 1440px;
+    margin: 0 auto;
+    padding: 0 40px 40px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 48px;
+  }
+
+  .desktop-back {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    grid-column: 1 / -1;
+    padding: 20px 0 8px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+    font-family: inherit;
+    transition: color 150ms ease;
+  }
+
+  .desktop-back:hover {
+    color: var(--color-text-primary);
+  }
+
+  .desktop-back svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .floating-nav {
+    display: none;
+  }
+
+  .hero {
+    height: 480px;
+    border-radius: 16px;
+    position: sticky;
+    top: 80px;
+    align-self: flex-start;
+  }
+
+  .hero-no-image {
+    height: 320px;
+  }
+
+  .content {
+    padding: 0;
+    max-width: none;
+  }
 }
 </style>
