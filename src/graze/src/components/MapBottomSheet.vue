@@ -1,5 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { getDishes } from '../api/dishes'
 import { useConfigStore } from '../stores/config'
 import { useSheetDrag } from '../composables/useSheetDrag'
@@ -13,6 +14,7 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'view-all'])
 
+const router = useRouter()
 const configStore = useConfigStore()
 const dishes = ref([])
 const loading = ref(false)
@@ -44,6 +46,10 @@ const distanceText = computed(() => {
   return null
 })
 
+function handleDishTap(dish) {
+  router.push({ name: 'dish-detail', params: { id: dish.id } })
+}
+
 // Sheet drag setup — start closed, open after measuring content
 const { sheetRef, handleRef, sheetStyle, currentHeight, snapTo, updateSnapPoints } = useSheetDrag({
   snapPoints: [0, 400],
@@ -71,7 +77,7 @@ async function loadDishes() {
     const response = await getDishes({
       restaurants: props.location.restaurant.slug,
       sort: 'protein_ratio_desc',
-      limit: 3,
+      limit: 5,
     })
     dishes.value = response.data || []
   } catch (error) {
@@ -143,7 +149,7 @@ onMounted(async () => {
             <div class="skeleton-dish" v-for="n in 3" :key="n"></div>
           </div>
           <div v-else-if="dishes.length" class="dishes-list">
-            <div v-for="dish in dishes" :key="dish.id" class="dish-row">
+            <button v-for="dish in dishes" :key="dish.id" class="dish-row" @click="handleDishTap(dish)">
               <div class="dish-info">
                 <span class="dish-name">{{ dish.name }}</span>
                 <span class="dish-category">{{ dish.category }}</span>
@@ -152,7 +158,7 @@ onMounted(async () => {
                 <span class="macro-cal">{{ dish.calories }} cal</span>
                 <span class="macro-protein">{{ dish.protein }}g protein</span>
               </div>
-            </div>
+            </button>
           </div>
           <div v-else class="dishes-empty">
             <p>No dishes available</p>
@@ -375,10 +381,22 @@ onMounted(async () => {
 .dish-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   padding: 10px 12px;
   background-color: var(--color-surface-elevated);
+  border: none;
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
+}
+
+.dish-row:hover {
+  background-color: var(--color-surface);
+}
+
+.dish-row:active {
+  background-color: var(--color-border);
 }
 
 .dish-info {
