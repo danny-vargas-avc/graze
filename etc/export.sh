@@ -23,4 +23,15 @@ for model, count in sorted(counts.items()):
 print(f'   total: {len(data)} records')
 "
 echo ""
+echo "==> Syncing media files to VPS..."
+MEDIA_DIR="$DJANGO_DIR/media/restaurants"
+VPS_HOST="graze"
+DEPLOY_PATH="/opt/graze"
+COMPOSE="docker compose -f etc/docker/docker-compose.yml --env-file etc/docker/.env.production"
+
+rsync -avz "$MEDIA_DIR/" "$VPS_HOST:/tmp/media-upload/"
+ssh "$VPS_HOST" "cd $DEPLOY_PATH && $COMPOSE cp /tmp/media-upload web:/app/media/restaurants/ && $COMPOSE exec web bash -c 'cp -r /app/media/restaurants/media-upload/* /app/media/restaurants/ && rm -rf /app/media/restaurants/media-upload'"
+echo "==> Media synced."
+
+echo ""
 echo "==> Commit and push, then run etc/build.sh + etc/deploy.sh"
