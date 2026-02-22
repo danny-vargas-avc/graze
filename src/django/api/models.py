@@ -12,6 +12,8 @@ class Restaurant(models.Model):
     icon = models.ImageField(upload_to='restaurants/icons/', blank=True, help_text='Square icon for map markers and thumbnails')
     brand_color = models.CharField(max_length=7, blank=True, default='#3B82F6', help_text='Hex color for map markers (e.g., #FF5733)')
     has_byo = models.BooleanField(default=False, help_text='Restaurant offers build-your-own bowls/meals')
+    byo_noun = models.CharField(max_length=50, blank=True, default='', help_text='e.g. "Bowl", "Pizza", "Sub" — shown as "Build Your Own Pizza"')
+    has_drink_customizer = models.BooleanField(default=False, help_text='Restaurant has drink variants with size/milk options')
     nutrition_pdf = models.FileField(upload_to='restaurants/pdfs/', blank=True, help_text='Upload nutrition PDF to auto-parse menu items')
     nutrition_source_url = models.URLField(blank=True)
     item_count = models.PositiveIntegerField(default=0)

@@ -191,16 +191,17 @@ export const useConfigStore = defineStore('config', {
      * Fetch configuration from backend API
      */
     async fetchConfig(force = false) {
-      // Check if already loaded and not expired
+      // Check if already loaded and not expired (within same session)
       if (!force && this.isConfigLoaded && !this.needsRefresh) {
         return
       }
 
-      // Try loading from cache first
+      // Try loading from cache first, then validate version with a lightweight API call
       if (!force) {
         const cached = this.loadFromCache()
         if (cached) {
-          console.log('Loaded config from cache')
+          // Validate version in background — if changed, refetch
+          this.validateVersion()
           return
         }
       }
@@ -347,24 +348,25 @@ export const useConfigStore = defineStore('config', {
     },
 
     /**
-     * Check for config version updates
-     * Returns true if a new version is available
+     * Validate cached version against API — refetch if stale
      */
-    async checkForUpdates() {
+    async validateVersion() {
       try {
         const response = await apiClient.get('/config/all/')
-        const newVersion = response.data.version
-
-        // If version changed, we need to refresh
-        if (this.version && newVersion !== this.version) {
-          console.log(`Config version updated: ${this.version} → ${newVersion}`)
-          return true
+        const data = response.data
+        if (data.version !== this.version) {
+          this.filters = data.filters || []
+          this.quickFilters = data.quick_filters || []
+          this.sortOptions = data.sort_options || []
+          this.appSettings = data.app_settings || {}
+          this.restaurantColors = data.restaurant_colors || {}
+          this.restaurantIcons = data.restaurant_icons || {}
+          this.version = data.version
+          this.lastFetched = Date.now()
+          this.saveToCache()
         }
-
-        return false
       } catch (error) {
-        console.error('Failed to check for config updates:', error)
-        return false
+        // Silently fail — cache is still valid as fallback
       }
     },
 

@@ -1,9 +1,10 @@
 <script setup>
-import { ref, reactive, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getByoComponents } from '../api/restaurants'
+import { getRestaurant } from '../api/restaurants'
 import { useConfigStore } from '../stores/config'
 import { useSheetDrag } from '../composables/useSheetDrag'
+import { groupDrinkVariants, lookupVariant } from '../utils/drinkParser'
 import LoadingSpinner from '../components/LoadingSpinner.vue'
 import ErrorState from '../components/ErrorState.vue'
 
@@ -12,12 +13,16 @@ const router = useRouter()
 const configStore = useConfigStore()
 
 const restaurant = ref(null)
-const categories = ref({})
 const loading = ref(true)
 const error = ref(null)
-const quantities = reactive({}) // { [itemId]: quantity }
 
-// --- Desktop detection ---
+// Drink data
+const baseDrinks = ref([])
+const selectedDrink = ref(null)
+const selectedSize = ref(null)
+const selectedMilk = ref(null)
+
+// Desktop detection
 const isDesktop = ref(false)
 let desktopQuery = null
 function onDesktopChange(e) { isDesktop.value = e.matches }
@@ -32,65 +37,30 @@ const restaurantLogoUrl = computed(() => {
   return configStore.getRestaurantIcon(restaurant.value.slug) || restaurant.value.logo_url
 })
 
-// Category display order and labels
-const categoryOrder = ['base', 'protein', 'topping', 'dressing', 'extra']
-const categoryLabels = {
-  base: 'Base',
-  protein: 'Protein',
-  topping: 'Toppings',
-  dressing: 'Dressing & Sauce',
-  extra: 'Extras',
-}
-
-const orderedCategories = computed(() => {
-  return categoryOrder.filter(cat => categories.value[cat]?.length > 0)
-})
-
-// Build a lookup map of all items by ID
-const allItems = computed(() => {
-  const map = {}
-  for (const cat of Object.values(categories.value)) {
-    for (const item of cat) {
-      map[item.id] = item
-    }
+// Group base drinks by category
+const drinksByCategory = computed(() => {
+  const groups = {}
+  for (const drink of baseDrinks.value) {
+    const cat = drink.category || 'Other'
+    if (!groups[cat]) groups[cat] = []
+    groups[cat].push(drink)
   }
-  return map
+  return Object.entries(groups)
+    .map(([name, drinks]) => ({ name, drinks }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 })
 
-// Selected items with quantities
-const selectedItems = computed(() => {
-  return Object.entries(quantities)
-    .filter(([, qty]) => qty > 0)
-    .map(([id, qty]) => ({ ...allItems.value[id], qty }))
-    .filter(item => item.id) // guard against stale IDs
+// Currently looked-up variant
+const currentVariant = computed(() => {
+  if (!selectedDrink.value || !selectedSize.value || !selectedMilk.value) return null
+  return lookupVariant(selectedDrink.value, selectedSize.value, selectedMilk.value)
 })
 
-// Totals (multiply each nutrient by its quantity)
-const totals = computed(() => {
-  const t = { calories: 0, protein: 0, carbs: 0, fat: 0, fiber: 0, sodium: 0, sugar: 0, saturated_fat: 0 }
-  for (const item of selectedItems.value) {
-    const q = item.qty
-    t.calories += Math.round((Number(item.calories) || 0) * q)
-    t.protein += (Number(item.protein) || 0) * q
-    t.carbs += (Number(item.carbs) || 0) * q
-    t.fat += (Number(item.fat) || 0) * q
-    t.fiber += (Number(item.fiber) || 0) * q
-    t.sodium += Math.round((Number(item.sodium) || 0) * q)
-    t.sugar += (Number(item.sugar) || 0) * q
-    t.saturated_fat += (Number(item.saturated_fat) || 0) * q
-  }
-  return t
-})
-
-const hasSelection = computed(() => selectedItems.value.length > 0)
-
-const itemCount = computed(() => {
-  return selectedItems.value.reduce((sum, item) => sum + item.qty, 0)
-})
+const hasSelection = computed(() => currentVariant.value !== null)
 
 const proteinPer100Cal = computed(() => {
-  if (totals.value.calories === 0) return 0
-  return Math.round((totals.value.protein * 100 / totals.value.calories) * 10) / 10
+  if (!currentVariant.value || currentVariant.value.calories === 0) return 0
+  return Math.round((Number(currentVariant.value.protein) * 100 / currentVariant.value.calories) * 10) / 10
 })
 
 const densityLabel = computed(() => {
@@ -102,25 +72,25 @@ const densityLabel = computed(() => {
 })
 
 const hasExtendedNutrition = computed(() => {
-  return selectedItems.value.some(item =>
-    item.fiber !== null || item.sodium !== null || item.sugar !== null || item.saturated_fat !== null
-  )
+  if (!currentVariant.value) return false
+  const v = currentVariant.value
+  return v.fiber !== null || v.sodium !== null || v.sugar !== null || v.saturated_fat !== null
 })
 
 // Draggable nutrition sheet
 const barHeight = 55
 const expandedHeight = window.innerHeight - 80
 
-const { handleRef: byoHandleRef, sheetStyle: byoSheetStyle, currentHeight: byoHeight, isDragging: byoDragging, snapTo: byoSnapTo } = useSheetDrag({
+const { handleRef: sheetHandleRef, currentHeight: sheetHeight, isDragging: sheetDragging, snapTo: sheetSnapTo } = useSheetDrag({
   snapPoints: [barHeight, expandedHeight],
   initialSnap: 0,
 })
 
-const showNutrition = computed(() => byoHeight.value > barHeight + 20)
+const showNutrition = computed(() => sheetHeight.value > barHeight + 20)
 
-const byoBarStyle = computed(() => ({
-  maxHeight: `${byoHeight.value}px`,
-  transition: byoDragging.value ? 'none' : `max-height 450ms cubic-bezier(0.32, 0.72, 0, 1)`,
+const sheetBarStyle = computed(() => ({
+  maxHeight: `${sheetHeight.value}px`,
+  transition: sheetDragging.value ? 'none' : `max-height 450ms cubic-bezier(0.32, 0.72, 0, 1)`,
   overflow: 'hidden',
 }))
 
@@ -130,9 +100,10 @@ onMounted(async () => {
   desktopQuery.addEventListener('change', onDesktopChange)
 
   try {
-    const data = await getByoComponents(route.params.slug)
-    restaurant.value = data.restaurant
-    categories.value = data.categories
+    const data = await getRestaurant(route.params.slug)
+    restaurant.value = data
+    const { baseDrinks: drinks } = groupDrinkVariants(data.dishes || [])
+    baseDrinks.value = drinks
   } catch (err) {
     error.value = err
   } finally {
@@ -148,75 +119,65 @@ function goBack() {
   router.back()
 }
 
-function getQty(item) {
-  return quantities[item.id] || 0
-}
-
-function isSelected(item) {
-  return getQty(item) > 0
-}
-
-function toggleItem(item) {
-  if (isSelected(item)) {
-    delete quantities[item.id]
-  } else {
-    quantities[item.id] = 1
+function selectDrink(drink) {
+  if (selectedDrink.value?.baseName === drink.baseName) {
+    // Deselect
+    selectedDrink.value = null
+    selectedSize.value = null
+    selectedMilk.value = null
+    return
   }
+
+  selectedDrink.value = drink
+  // Default to middle size and first milk
+  selectedSize.value = drink.sizes.includes('Grande') ? 'Grande' : drink.sizes[0]
+  selectedMilk.value = drink.milks[0]
 }
 
-function incrementQty(item, e) {
-  e.stopPropagation()
-  const current = getQty(item)
-  if (current < 2) {
-    quantities[item.id] = current + 0.5
-  }
+function selectSize(size) {
+  selectedSize.value = size
 }
 
-function decrementQty(item, e) {
-  e.stopPropagation()
-  const current = getQty(item)
-  if (current <= 0.5) {
-    delete quantities[item.id]
-  } else {
-    quantities[item.id] = current - 0.5
-  }
+function selectMilk(milk) {
+  selectedMilk.value = milk
 }
 
-function formatQty(qty) {
-  if (qty === 0.5) return '½'
-  if (qty === 1.5) return '1½'
-  return qty.toString()
-}
-
-function clearAll() {
-  Object.keys(quantities).forEach(key => delete quantities[key])
-  byoSnapTo(0)
+function clearSelection() {
+  selectedDrink.value = null
+  selectedSize.value = null
+  selectedMilk.value = null
+  sheetSnapTo(0)
 }
 
 function retry() {
   loading.value = true
   error.value = null
-  getByoComponents(route.params.slug)
+  getRestaurant(route.params.slug)
     .then(data => {
-      restaurant.value = data.restaurant
-      categories.value = data.categories
+      restaurant.value = data
+      const { baseDrinks: drinks } = groupDrinkVariants(data.dishes || [])
+      baseDrinks.value = drinks
     })
     .catch(err => { error.value = err })
     .finally(() => { loading.value = false })
 }
+
+function formatMilkLabel(milk) {
+  return milk.charAt(0).toUpperCase() + milk.slice(1)
+}
 </script>
 
 <template>
-  <div class="byo-view">
+  <div class="drink-view">
     <!-- Loading -->
-    <LoadingSpinner v-if="loading" center size="lg" text="Loading ingredients..." />
+    <LoadingSpinner v-if="loading" center size="lg" text="Loading drinks..." />
 
     <!-- Error -->
     <ErrorState v-else-if="error" :error="error" @retry="retry" />
 
     <!-- Content -->
     <template v-else-if="restaurant">
-      <!-- Desktop back bar (hidden on mobile) -->
+      <!-- Desktop back bar -->
       <button class="desktop-back" @click="goBack">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
           <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
@@ -225,14 +186,14 @@ function retry() {
       </button>
 
       <!-- Header -->
-      <div class="byo-header" :style="{ background: `linear-gradient(135deg, ${brandColor}18, ${brandColor}08)` }">
+      <div class="drink-header" :style="{ background: `linear-gradient(135deg, ${brandColor}18, ${brandColor}08)` }">
         <div class="header-nav">
           <button class="nav-btn" @click="goBack" aria-label="Go back">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
               <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <button v-if="hasSelection" class="clear-btn" @click="clearAll">Clear</button>
+          <button v-if="selectedDrink" class="clear-btn" @click="clearSelection">Clear</button>
         </div>
 
         <div class="header-info">
@@ -240,71 +201,96 @@ function retry() {
             <img :src="restaurantLogoUrl" :alt="restaurant.name" />
           </div>
           <div v-else class="header-dot" :style="{ backgroundColor: brandColor }"></div>
-          <h1 class="header-title">Build Your Own{{ restaurant.byo_noun ? ' ' + restaurant.byo_noun : '' }}</h1>
-          <p class="header-sub">{{ restaurant.name }}</p>
+          <h1 class="header-title">Customize Your Drink</h1>
+          <p class="header-sub">{{ restaurant.name }} · {{ baseDrinks.length }} drinks</p>
         </div>
       </div>
 
-      <!-- Ingredient selection -->
-      <div class="ingredient-sections">
-        <div v-for="cat in orderedCategories" :key="cat" class="category-section">
-          <h2 class="category-heading">{{ categoryLabels[cat] || cat }}</h2>
-          <div class="ingredient-grid">
+      <!-- Drink selection area -->
+      <div class="drink-sections">
+        <!-- Selected drink customizer -->
+        <div v-if="selectedDrink" class="customizer-panel">
+          <h2 class="selected-drink-name">{{ selectedDrink.baseName }}</h2>
+
+          <!-- Size picker -->
+          <div class="picker-section">
+            <h3 class="picker-label">Size</h3>
+            <div class="picker-chips">
+              <button
+                v-for="size in selectedDrink.sizes"
+                :key="size"
+                class="picker-chip"
+                :class="{ active: selectedSize === size }"
+                :style="selectedSize === size ? { borderColor: brandColor, backgroundColor: brandColor + '12', color: brandColor } : {}"
+                @click="selectSize(size)"
+              >
+                {{ size }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Milk picker -->
+          <div class="picker-section">
+            <h3 class="picker-label">Milk</h3>
+            <div class="picker-chips">
+              <button
+                v-for="milk in selectedDrink.milks"
+                :key="milk"
+                class="picker-chip"
+                :class="{ active: selectedMilk === milk }"
+                :style="selectedMilk === milk ? { borderColor: brandColor, backgroundColor: brandColor + '12', color: brandColor } : {}"
+                @click="selectMilk(milk)"
+              >
+                {{ formatMilkLabel(milk) }}
+              </button>
+            </div>
+          </div>
+
+          <!-- Variant not found warning -->
+          <div v-if="selectedSize && selectedMilk && !currentVariant" class="variant-missing">
+            <p>This combination isn't available.</p>
+          </div>
+        </div>
+
+        <!-- Category sections -->
+        <div v-for="group in drinksByCategory" :key="group.name" class="category-section">
+          <h2 class="category-heading">{{ group.name }}</h2>
+          <div class="drink-grid">
             <button
-              v-for="item in categories[cat]"
-              :key="item.id"
-              class="ingredient-chip"
-              :class="{ active: isSelected(item) }"
-              :style="isSelected(item) ? { borderColor: brandColor, backgroundColor: brandColor + '12' } : {}"
-              @click="toggleItem(item)"
+              v-for="drink in group.drinks"
+              :key="drink.baseName"
+              class="drink-chip"
+              :class="{ active: selectedDrink?.baseName === drink.baseName }"
+              :style="selectedDrink?.baseName === drink.baseName ? { borderColor: brandColor, backgroundColor: brandColor + '12' } : {}"
+              @click="selectDrink(drink)"
             >
-              <div class="chip-main">
-                <span class="chip-name">{{ item.name }}</span>
-                <span v-if="!isSelected(item)" class="chip-cal">{{ item.calories }} cal</span>
-                <!-- Quantity controls when selected -->
-                <div v-else class="qty-controls" @click.stop>
-                  <button class="qty-btn" @click="decrementQty(item, $event)" :style="{ color: brandColor }">
-                    <svg viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 10a.75.75 0 01.75-.75h10.5a.75.75 0 010 1.5H4.75A.75.75 0 014 10z" clip-rule="evenodd" /></svg>
-                  </button>
-                  <span class="qty-label" :style="{ color: brandColor }">{{ formatQty(getQty(item)) }}×</span>
-                  <button class="qty-btn" @click="incrementQty(item, $event)" :style="{ color: brandColor }" :disabled="getQty(item) >= 2">
-                    <svg viewBox="0 0 20 20" fill="currentColor"><path d="M10.75 4.75a.75.75 0 00-1.5 0v4.5h-4.5a.75.75 0 000 1.5h4.5v4.5a.75.75 0 001.5 0v-4.5h4.5a.75.75 0 000-1.5h-4.5v-4.5z" /></svg>
-                  </button>
-                </div>
-              </div>
-              <div class="chip-macros">
-                <span class="chip-macro"><strong>{{ item.protein }}g</strong> P</span>
-                <span class="chip-sep"></span>
-                <span class="chip-macro"><strong>{{ item.carbs }}g</strong> C</span>
-                <span class="chip-sep"></span>
-                <span class="chip-macro"><strong>{{ item.fat }}g</strong> F</span>
-              </div>
+              <span class="drink-name">{{ drink.baseName }}</span>
+              <span class="drink-meta">{{ drink.sizes.length }} sizes · {{ drink.milks.length }} milks</span>
             </button>
           </div>
         </div>
 
         <!-- Empty state -->
-        <div v-if="orderedCategories.length === 0" class="empty-state">
+        <div v-if="drinksByCategory.length === 0" class="empty-state">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="empty-icon">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
           </svg>
-          <p class="empty-text">No ingredients available yet.</p>
-          <p class="empty-sub">Check back soon — we're adding BYO data for {{ restaurant.name }}.</p>
+          <p class="empty-text">No drink variants found.</p>
+          <p class="empty-sub">This restaurant doesn't have customizable drinks.</p>
         </div>
       </div>
 
-      <!-- Sticky bottom bar with running total -->
+      <!-- Sticky bottom bar with nutrition -->
       <Transition name="slide-up">
-        <div v-if="hasSelection" class="sticky-bar" :style="isDesktop ? {} : byoBarStyle">
-          <div ref="byoHandleRef" class="bar-summary" @click="byoSnapTo(showNutrition ? 0 : 1)">
+        <div v-if="hasSelection" class="sticky-bar" :style="isDesktop ? {} : sheetBarStyle">
+          <div ref="sheetHandleRef" class="bar-summary" @click="sheetSnapTo(showNutrition ? 0 : 1)">
             <div class="bar-left">
-              <span class="bar-count">{{ selectedItems.length }} item{{ selectedItems.length > 1 ? 's' : '' }}</span>
-              <span class="bar-cals">{{ totals.calories }} cal</span>
+              <span class="bar-drink-name">{{ selectedDrink.baseName }}</span>
+              <span class="bar-variant">{{ selectedSize }} · {{ formatMilkLabel(selectedMilk) }}</span>
             </div>
             <div class="bar-macros">
-              <span class="bar-macro protein">{{ totals.protein.toFixed(0) }}g P</span>
-              <span class="bar-macro carbs">{{ totals.carbs.toFixed(0) }}g C</span>
-              <span class="bar-macro fat">{{ totals.fat.toFixed(0) }}g F</span>
+              <span class="bar-macro calories">{{ currentVariant.calories }} cal</span>
+              <span class="bar-macro protein">{{ Number(currentVariant.protein).toFixed(0) }}g P</span>
             </div>
             <button class="bar-expand" :class="{ rotated: showNutrition }">
               <svg viewBox="0 0 20 20" fill="currentColor">
@@ -314,97 +300,97 @@ function retry() {
           </div>
 
           <!-- Expanded nutrition sheet -->
-            <div class="nutrition-sheet">
-              <!-- Calorie hero -->
-              <div class="calorie-hero">
-                <span class="cal-number">{{ totals.calories }}</span>
-                <span class="cal-unit">cal</span>
-              </div>
+          <div class="nutrition-sheet">
+            <!-- Calorie hero -->
+            <div class="calorie-hero">
+              <span class="cal-number">{{ currentVariant.calories }}</span>
+              <span class="cal-unit">cal</span>
+            </div>
 
-              <!-- Macro rings -->
-              <div class="macro-row">
-                <div class="macro-item">
-                  <div class="macro-ring" style="--ring-color: var(--color-primary)">
-                    <span class="macro-val">{{ totals.protein.toFixed(0) }}g</span>
-                  </div>
-                  <span class="macro-label">Protein</span>
+            <!-- Macro rings -->
+            <div class="macro-row">
+              <div class="macro-item">
+                <div class="macro-ring" style="--ring-color: var(--color-primary)">
+                  <span class="macro-val">{{ Number(currentVariant.protein).toFixed(0) }}g</span>
                 </div>
-                <div class="macro-item">
-                  <div class="macro-ring" style="--ring-color: var(--color-warning)">
-                    <span class="macro-val">{{ totals.carbs.toFixed(0) }}g</span>
-                  </div>
-                  <span class="macro-label">Carbs</span>
-                </div>
-                <div class="macro-item">
-                  <div class="macro-ring" style="--ring-color: var(--color-text-tertiary)">
-                    <span class="macro-val">{{ totals.fat.toFixed(0) }}g</span>
-                  </div>
-                  <span class="macro-label">Fat</span>
-                </div>
+                <span class="macro-label">Protein</span>
               </div>
-
-              <!-- Protein density -->
-              <div v-if="totals.calories > 0" class="density-section">
-                <div class="density-row">
-                  <div class="density-left">
-                    <span class="density-title">Protein Density</span>
-                    <span class="density-stat">{{ proteinPer100Cal }}g per 100 cal</span>
-                  </div>
-                  <span class="density-badge" :class="densityLabel">{{ densityLabel }}</span>
+              <div class="macro-item">
+                <div class="macro-ring" style="--ring-color: var(--color-warning)">
+                  <span class="macro-val">{{ Number(currentVariant.carbs).toFixed(0) }}g</span>
                 </div>
+                <span class="macro-label">Carbs</span>
               </div>
-
-              <!-- Nutrition facts table -->
-              <div v-if="hasExtendedNutrition" class="nutrition-section">
-                <h2 class="section-heading">Nutrition Facts</h2>
-                <div class="nutrition-table">
-                  <div class="nut-row thick">
-                    <span>Calories</span>
-                    <span>{{ totals.calories }}</span>
-                  </div>
-                  <div class="nut-row thick">
-                    <span>Protein</span>
-                    <span>{{ totals.protein.toFixed(1) }}g</span>
-                  </div>
-                  <div class="nut-row thick">
-                    <span>Total Carbs</span>
-                    <span>{{ totals.carbs.toFixed(1) }}g</span>
-                  </div>
-                  <div v-if="totals.fiber" class="nut-row indent">
-                    <span>Fiber</span>
-                    <span>{{ totals.fiber.toFixed(1) }}g</span>
-                  </div>
-                  <div v-if="totals.sugar" class="nut-row indent">
-                    <span>Sugar</span>
-                    <span>{{ totals.sugar.toFixed(1) }}g</span>
-                  </div>
-                  <div class="nut-row thick">
-                    <span>Total Fat</span>
-                    <span>{{ totals.fat.toFixed(1) }}g</span>
-                  </div>
-                  <div v-if="totals.saturated_fat" class="nut-row indent">
-                    <span>Saturated Fat</span>
-                    <span>{{ totals.saturated_fat.toFixed(1) }}g</span>
-                  </div>
-                  <div v-if="totals.sodium" class="nut-row thick">
-                    <span>Sodium</span>
-                    <span>{{ totals.sodium }}mg</span>
-                  </div>
+              <div class="macro-item">
+                <div class="macro-ring" style="--ring-color: var(--color-text-tertiary)">
+                  <span class="macro-val">{{ Number(currentVariant.fat).toFixed(0) }}g</span>
                 </div>
+                <span class="macro-label">Fat</span>
               </div>
+            </div>
 
-              <!-- Selected items breakdown -->
-              <div class="breakdown-section">
-                <h2 class="section-heading">Your Bowl</h2>
-                <div v-for="item in selectedItems" :key="item.id" class="breakdown-item">
-                  <span class="breakdown-name">
-                    <span v-if="item.qty !== 1" class="breakdown-qty">{{ formatQty(item.qty) }}×</span>
-                    {{ item.name }}
-                  </span>
-                  <span class="breakdown-cal">{{ Math.round(item.calories * item.qty) }} cal</span>
+            <!-- Protein density -->
+            <div v-if="currentVariant.calories > 0" class="density-section">
+              <div class="density-row">
+                <div class="density-left">
+                  <span class="density-title">Protein Density</span>
+                  <span class="density-stat">{{ proteinPer100Cal }}g per 100 cal</span>
+                </div>
+                <span class="density-badge" :class="densityLabel">{{ densityLabel }}</span>
+              </div>
+            </div>
+
+            <!-- Nutrition facts table -->
+            <div v-if="hasExtendedNutrition" class="nutrition-section">
+              <h2 class="section-heading">Nutrition Facts</h2>
+              <div class="nutrition-table">
+                <div class="nut-row thick">
+                  <span>Calories</span>
+                  <span>{{ currentVariant.calories }}</span>
+                </div>
+                <div class="nut-row thick">
+                  <span>Protein</span>
+                  <span>{{ Number(currentVariant.protein).toFixed(1) }}g</span>
+                </div>
+                <div class="nut-row thick">
+                  <span>Total Carbs</span>
+                  <span>{{ Number(currentVariant.carbs).toFixed(1) }}g</span>
+                </div>
+                <div v-if="currentVariant.fiber" class="nut-row indent">
+                  <span>Fiber</span>
+                  <span>{{ Number(currentVariant.fiber).toFixed(1) }}g</span>
+                </div>
+                <div v-if="currentVariant.sugar" class="nut-row indent">
+                  <span>Sugar</span>
+                  <span>{{ Number(currentVariant.sugar).toFixed(1) }}g</span>
+                </div>
+                <div class="nut-row thick">
+                  <span>Total Fat</span>
+                  <span>{{ Number(currentVariant.fat).toFixed(1) }}g</span>
+                </div>
+                <div v-if="currentVariant.saturated_fat" class="nut-row indent">
+                  <span>Saturated Fat</span>
+                  <span>{{ Number(currentVariant.saturated_fat).toFixed(1) }}g</span>
+                </div>
+                <div v-if="currentVariant.sodium" class="nut-row thick">
+                  <span>Sodium</span>
+                  <span>{{ currentVariant.sodium }}mg</span>
                 </div>
               </div>
             </div>
+
+            <!-- Drink info -->
+            <div class="breakdown-section">
+              <h2 class="section-heading">Your Drink</h2>
+              <div class="breakdown-item">
+                <span class="breakdown-name">{{ currentVariant.name }}</span>
+              </div>
+              <div v-if="currentVariant.serving_size" class="breakdown-item">
+                <span class="breakdown-label">Serving</span>
+                <span class="breakdown-val">{{ currentVariant.serving_size }}</span>
+              </div>
+            </div>
+          </div>
         </div>
       </Transition>
     </template>
@@ -412,14 +398,14 @@ function retry() {
 </template>
 
 <style scoped>
-.byo-view {
+.drink-view {
   max-width: 640px;
   margin: 0 auto;
   padding-bottom: 120px;
 }
 
 /* ---- Header ---- */
-.byo-header {
+.drink-header {
   padding: 16px 20px 24px;
 }
 
@@ -524,11 +510,79 @@ function retry() {
   color: var(--color-text-secondary);
 }
 
-/* ---- Category sections ---- */
-.ingredient-sections {
+/* ---- Customizer panel ---- */
+.drink-sections {
   padding: 0 20px;
 }
 
+.customizer-panel {
+  background: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 24px;
+}
+
+.selected-drink-name {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 16px;
+}
+
+.picker-section {
+  margin-bottom: 16px;
+}
+
+.picker-section:last-child {
+  margin-bottom: 0;
+}
+
+.picker-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-tertiary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.picker-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.picker-chip {
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: 2px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 150ms ease;
+}
+
+.picker-chip:hover {
+  border-color: var(--color-text-tertiary);
+}
+
+.picker-chip.active {
+  font-weight: 600;
+}
+
+.variant-missing {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-text-tertiary);
+  font-size: 13px;
+}
+
+/* ---- Category sections ---- */
 .category-section {
   margin-bottom: 24px;
 }
@@ -542,23 +596,23 @@ function retry() {
   border-top: 1px solid var(--color-border);
 }
 
-.category-section:first-child .category-heading {
+.category-section:first-child .category-heading,
+.customizer-panel + .category-section .category-heading {
   border-top: none;
   padding-top: 0;
 }
 
-.ingredient-grid {
+.drink-grid {
   display: flex;
   flex-direction: column;
   gap: 8px;
 }
 
-/* ---- Ingredient chips ---- */
-.ingredient-chip {
-  position: relative;
+/* ---- Drink chips ---- */
+.drink-chip {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
   padding: 12px 16px;
   border-radius: 12px;
   border: 2px solid var(--color-border);
@@ -568,95 +622,19 @@ function retry() {
   transition: border-color 150ms ease, background-color 150ms ease, transform 100ms ease;
 }
 
-.ingredient-chip:active {
+.drink-chip:active {
   transform: scale(0.98);
 }
 
-.chip-main {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.chip-name {
+.drink-name {
   font-size: 15px;
   font-weight: 600;
   color: var(--color-text-primary);
 }
 
-.chip-cal {
-  font-size: 13px;
-  font-weight: 500;
-  color: var(--color-text-tertiary);
-}
-
-.chip-macros {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.chip-macro {
+.drink-meta {
   font-size: 12px;
   color: var(--color-text-tertiary);
-}
-
-.chip-macro strong {
-  color: var(--color-text-secondary);
-  font-weight: 600;
-}
-
-.chip-sep {
-  width: 3px;
-  height: 3px;
-  border-radius: 50%;
-  background: var(--color-border);
-}
-
-/* ---- Quantity controls ---- */
-.qty-controls {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.qty-btn {
-  width: 28px;
-  height: 28px;
-  border-radius: 50%;
-  border: none;
-  background: var(--color-surface-elevated);
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
-  transition: background 150ms ease, transform 100ms ease;
-}
-
-.qty-btn:active {
-  transform: scale(0.9);
-}
-
-.qty-btn:disabled {
-  opacity: 0.3;
-  cursor: default;
-}
-
-.qty-btn:disabled:active {
-  transform: none;
-}
-
-.qty-btn svg {
-  width: 16px;
-  height: 16px;
-}
-
-.qty-label {
-  font-size: 14px;
-  font-weight: 700;
-  min-width: 28px;
-  text-align: center;
 }
 
 /* ---- Empty state ---- */
@@ -724,15 +702,19 @@ function retry() {
   display: flex;
   flex-direction: column;
   gap: 1px;
+  min-width: 0;
 }
 
-.bar-count {
+.bar-drink-name {
   font-size: 14px;
   font-weight: 700;
   color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
-.bar-cals {
+.bar-variant {
   font-size: 12px;
   color: var(--color-text-tertiary);
 }
@@ -740,6 +722,7 @@ function retry() {
 .bar-macros {
   display: flex;
   gap: 10px;
+  flex-shrink: 0;
 }
 
 .bar-macro {
@@ -765,6 +748,7 @@ function retry() {
   background: var(--color-surface);
   color: var(--color-text-secondary);
   transition: transform 200ms ease;
+  flex-shrink: 0;
 }
 
 .bar-expand.rotated {
@@ -776,14 +760,13 @@ function retry() {
   height: 18px;
 }
 
-/* ---- Nutrition sheet (inside sticky bar) ---- */
+/* ---- Nutrition sheet ---- */
 .nutrition-sheet {
   padding: 0 20px 32px;
   max-height: calc(100dvh - 200px);
   overflow-y: auto;
 }
 
-/* Reuse DishDetailView nutrition styles */
 .calorie-hero {
   display: flex;
   align-items: baseline;
@@ -965,15 +948,15 @@ function retry() {
   color: var(--color-text-primary);
 }
 
-.breakdown-cal {
+.breakdown-label {
   font-size: 14px;
   color: var(--color-text-tertiary);
 }
 
-.breakdown-qty {
-  font-weight: 600;
-  color: var(--color-primary);
-  margin-right: 2px;
+.breakdown-val {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--color-text-primary);
 }
 
 /* ---- Transitions ---- */
@@ -988,7 +971,7 @@ function retry() {
   opacity: 0;
 }
 
-/* ---- Dark mode adjustments ---- */
+/* ---- Dark mode ---- */
 :root[data-theme='dark'] .density-badge.excellent {
   background-color: #052e16;
   color: #4ade80;
@@ -1015,7 +998,7 @@ function retry() {
 
 /* ---- Desktop layout ---- */
 @media (min-width: 1024px) {
-  .byo-view {
+  .drink-view {
     max-width: 1440px;
     margin: 0 auto;
     padding: 0 40px 40px;
@@ -1049,7 +1032,7 @@ function retry() {
     height: 16px;
   }
 
-  .byo-header {
+  .drink-header {
     grid-column: 1;
     border-radius: 16px;
   }
@@ -1062,16 +1045,16 @@ function retry() {
     justify-content: flex-end;
   }
 
-  .ingredient-sections {
+  .drink-sections {
     grid-column: 1;
   }
 
-  .ingredient-grid {
+  .drink-grid {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
   }
 
-  /* Nutrition sidebar (replaces sticky bottom bar) */
+  /* Nutrition sidebar */
   .sticky-bar {
     position: sticky;
     top: 80px;

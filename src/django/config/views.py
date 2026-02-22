@@ -1,3 +1,4 @@
+import hashlib
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from .models import FilterConfiguration, QuickFilter, SortOption, AppConfiguration
@@ -67,7 +68,13 @@ def config_all(request):
         'app_settings': AppConfigurationSerializer(app_config).data,
         'restaurant_colors': restaurant_colors,
         'restaurant_icons': restaurant_icons,
-        'version': app_config.version
+        'version': _config_version(app_config.version, restaurant_colors, restaurant_icons)
     }
 
     return Response(data)
+
+
+def _config_version(base_version, colors, icons):
+    """Generate a version string that changes when restaurant data changes."""
+    content = f"{base_version}:{sorted(colors.items())}:{sorted(icons.items())}"
+    return hashlib.md5(content.encode()).hexdigest()[:8]

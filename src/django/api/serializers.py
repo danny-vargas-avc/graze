@@ -7,7 +7,7 @@ class RestaurantListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'slug', 'logo_url', 'item_count', 'has_byo']
+        fields = ['id', 'name', 'slug', 'logo_url', 'item_count', 'has_byo', 'byo_noun', 'has_drink_customizer']
 
     def get_logo_url(self, obj):
         if obj.logo:
@@ -20,7 +20,7 @@ class RestaurantDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Restaurant
-        fields = ['id', 'name', 'slug', 'website_url', 'logo_url', 'nutrition_source_url', 'item_count', 'has_byo', 'last_updated']
+        fields = ['id', 'name', 'slug', 'website_url', 'logo_url', 'nutrition_source_url', 'item_count', 'has_byo', 'byo_noun', 'has_drink_customizer', 'last_updated']
 
     def get_logo_url(self, obj):
         if obj.logo:

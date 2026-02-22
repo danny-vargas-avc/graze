@@ -50,6 +50,12 @@ const routes = [
     meta: { hideHeader: true },
     component: () => import('./views/ByoCalculatorView.vue'),
   },
+  {
+    path: '/restaurant/:slug/drinks',
+    name: 'drink-customizer',
+    meta: { hideHeader: true },
+    component: () => import('./views/DrinkCustomizerView.vue'),
+  },
   // Redirect old routes
   {
     path: '/search',

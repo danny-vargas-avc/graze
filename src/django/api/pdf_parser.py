@@ -29,25 +29,54 @@ def parse_with_claude(text, api_key):
 
     message = client.messages.create(
         model="claude-sonnet-4-20250514",
-        max_tokens=4096,
+        max_tokens=8192,
         messages=[{
             "role": "user",
             "content": f"""Parse this restaurant nutrition information into structured JSON.
 
-Extract every menu item with these fields:
-- name (string, required)
-- category (string, e.g. "Entrees", "Sides", "Beverages")
-- serving_size (string, e.g. "1 bowl", "12 oz")
-- calories (integer, required)
-- protein (number in grams, required)
-- carbs (number in grams, required)
-- fat (number in grams, required)
-- fiber (number in grams or null)
-- sodium (integer in mg or null)
-- sugar (number in grams or null)
-- saturated_fat (number in grams or null)
+You must classify each item as either a "menu_item" or a "byo_component":
 
-Return ONLY a JSON array of objects. No markdown, no explanation.
+- **menu_item**: A complete dish you'd order (e.g. "Chicken Burrito Bowl", "Caesar Salad", "Lemonade")
+- **byo_component**: An individual ingredient for a build-your-own meal (e.g. "White Rice", "Chicken", "Sour Cream", "Guacamole"). These are typically listed per-ingredient with small serving sizes, grouped under categories like Base, Protein, Toppings, Dressings/Sauces.
+
+Return a JSON object with two arrays:
+
+{{
+  "menu_items": [
+    {{
+      "name": "string (required)",
+      "category": "string (e.g. Entrees, Sides, Beverages)",
+      "serving_size": "string (e.g. 1 bowl, 12 oz)",
+      "calories": "integer (required)",
+      "protein": "number in grams (required)",
+      "carbs": "number in grams (required)",
+      "fat": "number in grams (required)",
+      "fiber": "number in grams or null",
+      "sodium": "integer in mg or null",
+      "sugar": "number in grams or null",
+      "saturated_fat": "number in grams or null"
+    }}
+  ],
+  "byo_components": [
+    {{
+      "name": "string (required)",
+      "category": "string: one of base, protein, topping, dressing, extra (required)",
+      "calories": "integer (required)",
+      "protein": "number in grams (required)",
+      "carbs": "number in grams (required)",
+      "fat": "number in grams (required)",
+      "fiber": "number in grams or null",
+      "sodium": "integer in mg or null",
+      "sugar": "number in grams or null",
+      "saturated_fat": "number in grams or null"
+    }}
+  ]
+}}
+
+For byo_components category, map to one of: base, protein, topping, dressing, extra.
+If the PDF has no BYO ingredients, return an empty byo_components array.
+
+Return ONLY the JSON object. No markdown, no explanation.
 
 Nutrition data:
 {text}"""
@@ -65,7 +94,10 @@ Nutrition data:
 
 
 def parse_nutrition_pdf(pdf_file, api_key):
-    """Full pipeline: extract text from PDF, parse with Claude."""
+    """Full pipeline: extract text from PDF, parse with Claude.
+
+    Returns dict with 'menu_items' and 'byo_components' arrays.
+    """
     text = extract_pdf_text(pdf_file)
     if not text.strip():
         raise ValueError("No text could be extracted from the PDF.")

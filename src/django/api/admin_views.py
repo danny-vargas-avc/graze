@@ -164,13 +164,14 @@ def parse_nutrition_pdf(request):
     restaurants = Restaurant.objects.all()
 
     if request.method == 'POST':
-        # Step 2: Confirm and save parsed items
+        # Step 2: Confirm and save parsed items + BYO components
         if 'confirm' in request.POST:
             restaurant_id = request.POST.get('restaurant')
             restaurant = Restaurant.objects.get(pk=restaurant_id)
-            imported = 0
+            imported_items = 0
+            imported_byo = 0
 
-            # Collect checked rows from the form
+            # Save menu items
             item_count = int(request.POST.get('item_count', 0))
             for i in range(item_count):
                 if not request.POST.get(f'include_{i}'):
@@ -193,12 +194,46 @@ def parse_nutrition_pdf(request):
                             'last_verified': timezone.now(),
                         }
                     )
-                    imported += 1
+                    imported_items += 1
+                except (ValueError, InvalidOperation):
+                    continue
+
+            # Save BYO components
+            byo_count = int(request.POST.get('byo_count', 0))
+            for i in range(byo_count):
+                if not request.POST.get(f'byo_include_{i}'):
+                    continue
+                try:
+                    ByoComponent.objects.update_or_create(
+                        restaurant=restaurant,
+                        name=request.POST.get(f'byo_name_{i}', ''),
+                        defaults={
+                            'category': request.POST.get(f'byo_category_{i}', 'extra'),
+                            'calories': int(request.POST.get(f'byo_calories_{i}', 0)),
+                            'protein': Decimal(request.POST.get(f'byo_protein_{i}', 0)),
+                            'carbs': Decimal(request.POST.get(f'byo_carbs_{i}', 0)),
+                            'fat': Decimal(request.POST.get(f'byo_fat_{i}', 0)),
+                            'fiber': Decimal(request.POST.get(f'byo_fiber_{i}')) if request.POST.get(f'byo_fiber_{i}') else None,
+                            'sodium': int(request.POST.get(f'byo_sodium_{i}')) if request.POST.get(f'byo_sodium_{i}') else None,
+                            'sugar': Decimal(request.POST.get(f'byo_sugar_{i}')) if request.POST.get(f'byo_sugar_{i}') else None,
+                            'saturated_fat': Decimal(request.POST.get(f'byo_saturated_fat_{i}')) if request.POST.get(f'byo_saturated_fat_{i}') else None,
+                        }
+                    )
+                    imported_byo += 1
                 except (ValueError, InvalidOperation):
                     continue
 
             restaurant.update_item_count()
-            messages.success(request, f'Created {imported} menu items for {restaurant.name}.')
+            if imported_byo:
+                restaurant.has_byo = True
+                restaurant.save(update_fields=['has_byo'])
+
+            parts = []
+            if imported_items:
+                parts.append(f'{imported_items} menu items')
+            if imported_byo:
+                parts.append(f'{imported_byo} BYO components')
+            messages.success(request, f'Imported {" and ".join(parts)} for {restaurant.name}.')
             return render(request, 'admin/api/parse_pdf.html', {'restaurants': restaurants})
 
         # Step 1: Upload and parse PDF
@@ -213,6 +248,11 @@ def parse_nutrition_pdf(request):
 
         try:
             from .pdf_parser import parse_nutrition_pdf as do_parse
+        except ImportError as e:
+            messages.error(request, f'Missing dependency: {e}. Run: pip install pdfplumber anthropic')
+            return render(request, 'admin/api/parse_pdf.html', {'restaurants': restaurants})
+
+        try:
             from django.conf import settings
 
             api_key = settings.ANTHROPIC_API_KEY
@@ -220,16 +260,18 @@ def parse_nutrition_pdf(request):
                 messages.error(request, 'ANTHROPIC_API_KEY not configured in settings.')
                 return render(request, 'admin/api/parse_pdf.html', {'restaurants': restaurants})
 
-            items = do_parse(pdf_file, api_key)
+            result = do_parse(pdf_file, api_key)
+            menu_items = result.get('menu_items', [])
+            byo_components = result.get('byo_components', [])
 
             return render(request, 'admin/api/parse_pdf.html', {
                 'restaurants': restaurants,
-                'parsed_items': items,
+                'parsed_items': menu_items,
+                'parsed_byo': byo_components,
                 'restaurant': restaurant,
-                'item_count': len(items),
+                'item_count': len(menu_items),
+                'byo_count': len(byo_components),
             })
-        except ImportError:
-            messages.error(request, 'pdfplumber or anthropic not installed. Run: pip install pdfplumber anthropic')
         except Exception as e:
             messages.error(request, f'PDF parsing failed: {e}')
 

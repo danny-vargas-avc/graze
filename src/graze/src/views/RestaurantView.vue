@@ -1,9 +1,11 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, reactive } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { getRestaurant } from '../api/restaurants'
 import { useConfigStore } from '../stores/config'
 import DishCard from '../components/DishCard.vue'
+import SearchBar from '../components/SearchBar.vue'
+import { parseDrinkVariant } from '../utils/drinkParser'
 
 const route = useRoute()
 const router = useRouter()
@@ -13,22 +15,66 @@ const restaurant = ref(null)
 const loading = ref(true)
 const error = ref(null)
 const activeCategory = ref(null)
+const searchQuery = ref('')
+const expandedCategories = reactive(new Set())
+
+const PREVIEW_COUNT = 6
 
 const brandColor = computed(() => {
   if (!restaurant.value) return '#06C167'
   return configStore.getRestaurantColor(restaurant.value.slug) || '#06C167'
 })
 
-const categories = computed(() => {
+// When has_drink_customizer, filter out drink variants from the menu
+const menuDishes = computed(() => {
   if (!restaurant.value?.dishes) return []
-  const cats = [...new Set(restaurant.value.dishes.map(d => d.category).filter(Boolean))]
+  if (!restaurant.value.has_drink_customizer) return restaurant.value.dishes
+  return restaurant.value.dishes.filter(d => !parseDrinkVariant(d.name))
+})
+
+const categories = computed(() => {
+  if (!menuDishes.value.length) return []
+  const cats = [...new Set(menuDishes.value.map(d => d.category).filter(Boolean))]
   return cats.sort()
 })
 
+const isLargeMenu = computed(() => menuDishes.value.length > 100)
+const isSearching = computed(() => searchQuery.value.trim().length > 0)
+
 const filteredDishes = computed(() => {
-  if (!restaurant.value?.dishes) return []
-  if (!activeCategory.value) return restaurant.value.dishes
-  return restaurant.value.dishes.filter(d => d.category === activeCategory.value)
+  if (!menuDishes.value.length) return []
+  if (!activeCategory.value) return menuDishes.value
+  return menuDishes.value.filter(d => d.category === activeCategory.value)
+})
+
+const searchFilteredDishes = computed(() => {
+  if (!menuDishes.value.length) return []
+  const q = searchQuery.value.trim().toLowerCase()
+  if (!q) return []
+  return menuDishes.value.filter(d => d.name.toLowerCase().includes(q))
+})
+
+const groupedByCategory = computed(() => {
+  if (!menuDishes.value.length) return []
+  const groups = {}
+  const dishes = activeCategory.value
+    ? menuDishes.value.filter(d => d.category === activeCategory.value)
+    : menuDishes.value
+
+  for (const dish of dishes) {
+    const cat = dish.category || 'Other'
+    if (!groups[cat]) groups[cat] = []
+    groups[cat].push(dish)
+  }
+
+  return Object.entries(groups)
+    .map(([name, items]) => ({
+      name,
+      items,
+      count: items.length,
+      preview: items.slice(0, PREVIEW_COUNT),
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name))
 })
 
 onMounted(async () => {
@@ -47,6 +93,19 @@ function goBack() {
 
 function setCategory(cat) {
   activeCategory.value = activeCategory.value === cat ? null : cat
+  expandedCategories.clear()
+}
+
+function toggleExpand(categoryName) {
+  if (expandedCategories.has(categoryName)) {
+    expandedCategories.delete(categoryName)
+  } else {
+    expandedCategories.add(categoryName)
+  }
+}
+
+function handleSearch(value) {
+  searchQuery.value = value
 }
 </script>
 
@@ -107,12 +166,21 @@ function setCategory(cat) {
         </div>
       </div>
 
+      <!-- Search bar (large menus only) — disabled for now -->
+      <!-- <div v-if="isLargeMenu" class="menu-search">
+        <SearchBar
+          :model-value="searchQuery"
+          @update:model-value="handleSearch"
+          :placeholder="`Search ${restaurant.name} menu...`"
+        />
+      </div> -->
+
       <!-- Category tabs -->
-      <div v-if="categories.length > 1" class="category-tabs hide-scrollbar">
+      <div v-if="categories.length > 1 && !isSearching" class="category-tabs hide-scrollbar">
         <button
           class="category-tab"
           :class="{ active: !activeCategory }"
-          @click="activeCategory = null"
+          @click="setCategory(null)"
         >
           All
         </button>
@@ -127,10 +195,140 @@ function setCategory(cat) {
         </button>
       </div>
 
-      <!-- Dishes grid -->
-      <div class="dishes-area">
+      <!-- Large menu: search results -->
+      <div v-if="isLargeMenu && isSearching" class="dishes-area">
+        <p class="results-count">{{ searchFilteredDishes.length }} result{{ searchFilteredDishes.length !== 1 ? 's' : '' }} for "{{ searchQuery }}"</p>
+        <div class="dishes-grid">
+          <DishCard
+            v-for="dish in searchFilteredDishes"
+            :key="dish.id"
+            :dish="{ ...dish, restaurant }"
+          />
+        </div>
+        <div v-if="searchFilteredDishes.length === 0" class="empty-search">
+          <p class="empty-title">No items found</p>
+          <p class="empty-sub">Try a different search term</p>
+        </div>
+      </div>
+
+      <!-- Large menu: sectioned by category -->
+      <div v-else-if="isLargeMenu" class="dishes-area">
+        <!-- Drink Customizer card -->
+        <RouterLink
+          v-if="restaurant.has_drink_customizer && !activeCategory"
+          :to="{ name: 'drink-customizer', params: { slug: restaurant.slug } }"
+          class="dish-card byo-card feature-card"
+        >
+          <div class="brand-accent" :style="{ backgroundColor: brandColor }"></div>
+          <div class="card-content">
+            <div class="byo-icon-box" :style="{ backgroundColor: brandColor }">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-1.286 5.143a2.25 2.25 0 01-2.18 1.707h-7.068a2.25 2.25 0 01-2.18-1.707L5 14.5m14 0H5" />
+              </svg>
+            </div>
+            <div class="card-text">
+              <div class="restaurant-row">
+                <p class="restaurant-name">{{ restaurant.name }}</p>
+              </div>
+              <h3 class="dish-name">Customize Your Drink</h3>
+              <p class="byo-sub">Choose size & milk to see nutrition</p>
+            </div>
+            <svg class="byo-arrow" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+            </svg>
+          </div>
+        </RouterLink>
+
+        <!-- BYO Calculator card -->
+        <RouterLink
+          v-if="restaurant.has_byo && !activeCategory"
+          :to="{ name: 'byo-calculator', params: { slug: restaurant.slug } }"
+          class="dish-card byo-card feature-card"
+        >
+          <div class="brand-accent" :style="{ backgroundColor: brandColor }"></div>
+          <div class="card-content">
+            <div class="byo-icon-box" :style="{ backgroundColor: brandColor }">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 15.75V18m-7.5-6.75h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm0 2.25h.008v.008H8.25v-.008zm2.498-6.75h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm0 2.25h.007v.008h-.007v-.008zm2.504-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zm2.498-6.75h.008v.008h-.008v-.008zm0 2.25h.008v.008h-.008v-.008zM8.25 6h7.5v2.25h-7.5V6zM12 2.25c-1.892 0-3.758.11-5.593.322C5.307 2.7 4.5 3.65 4.5 4.757V19.5a2.25 2.25 0 002.25 2.25h10.5a2.25 2.25 0 002.25-2.25V4.757c0-1.108-.806-2.057-1.907-2.185A48.507 48.507 0 0012 2.25z" />
+              </svg>
+            </div>
+            <div class="card-text">
+              <div class="restaurant-row">
+                <p class="restaurant-name">{{ restaurant.name }}</p>
+              </div>
+              <h3 class="dish-name">Build Your Own{{ restaurant.byo_noun ? ' ' + restaurant.byo_noun : '' }}</h3>
+              <p class="byo-sub">Calculate nutrition for a custom meal</p>
+            </div>
+            <svg class="byo-arrow" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+            </svg>
+          </div>
+        </RouterLink>
+
+        <div v-for="group in groupedByCategory" :key="group.name" class="menu-section">
+          <div class="section-header">
+            <h2 class="section-title">{{ group.name }}</h2>
+            <span class="section-count">{{ group.count }}</span>
+          </div>
+          <div class="dishes-grid">
+            <DishCard
+              v-for="dish in (expandedCategories.has(group.name) ? group.items : group.preview)"
+              :key="dish.id"
+              :dish="{ ...dish, restaurant }"
+            />
+          </div>
+          <button
+            v-if="group.count > PREVIEW_COUNT && !expandedCategories.has(group.name)"
+            class="show-all-btn"
+            @click="toggleExpand(group.name)"
+          >
+            Show all {{ group.count }} items
+            <svg viewBox="0 0 20 20" fill="currentColor" class="show-all-icon">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+          <button
+            v-else-if="group.count > PREVIEW_COUNT && expandedCategories.has(group.name)"
+            class="show-all-btn"
+            @click="toggleExpand(group.name)"
+          >
+            Show less
+            <svg viewBox="0 0 20 20" fill="currentColor" class="show-all-icon flip">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.938a.75.75 0 111.08 1.04l-4.25 4.5a.75.75 0 01-1.08 0l-4.25-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd" />
+            </svg>
+          </button>
+        </div>
+      </div>
+
+      <!-- Small menu: flat grid (unchanged) -->
+      <div v-else class="dishes-area">
         <p class="results-count">{{ filteredDishes.length }} items</p>
         <div class="dishes-grid">
+          <!-- Drink Customizer card -->
+          <RouterLink
+            v-if="restaurant.has_drink_customizer && !activeCategory"
+            :to="{ name: 'drink-customizer', params: { slug: restaurant.slug } }"
+            class="dish-card byo-card"
+          >
+            <div class="brand-accent" :style="{ backgroundColor: brandColor }"></div>
+            <div class="card-content">
+              <div class="byo-icon-box" :style="{ backgroundColor: brandColor }">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-1.286 5.143a2.25 2.25 0 01-2.18 1.707h-7.068a2.25 2.25 0 01-2.18-1.707L5 14.5m14 0H5" />
+                </svg>
+              </div>
+              <div class="card-text">
+                <div class="restaurant-row">
+                  <p class="restaurant-name">{{ restaurant.name }}</p>
+                </div>
+                <h3 class="dish-name">Customize Your Drink</h3>
+                <p class="byo-sub">Choose size & milk to see nutrition</p>
+              </div>
+              <svg class="byo-arrow" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
+              </svg>
+            </div>
+          </RouterLink>
           <!-- BYO Calculator card -->
           <RouterLink
             v-if="restaurant.has_byo && !activeCategory"
@@ -301,6 +499,11 @@ function setCategory(cat) {
   text-decoration: underline;
 }
 
+/* ---- Feature cards (Drink Customizer, BYO) spacing ---- */
+.feature-card {
+  margin-bottom: 20px;
+}
+
 /* ---- BYO Card (in grid) ---- */
 .byo-card {
   display: flex;
@@ -421,6 +624,15 @@ function setCategory(cat) {
   color: #ffffff;
 }
 
+.menu-search {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  padding: 12px 16px;
+  background-color: var(--color-surface-elevated);
+  border-bottom: 1px solid var(--color-border);
+}
+
 .dishes-area {
   padding: 16px;
 }
@@ -434,6 +646,82 @@ function setCategory(cat) {
 .dishes-grid {
   display: grid;
   gap: 12px;
+}
+
+/* Sectioned menu */
+.menu-section {
+  margin-bottom: 28px;
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.section-title {
+  font-size: 17px;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  text-transform: capitalize;
+}
+
+.section-count {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-tertiary);
+  background: var(--color-surface);
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.show-all-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 8px 0;
+  background: none;
+  border: none;
+  color: var(--color-primary);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  font-family: inherit;
+  transition: opacity 150ms ease;
+}
+
+.show-all-btn:hover {
+  opacity: 0.8;
+}
+
+.show-all-icon {
+  width: 16px;
+  height: 16px;
+}
+
+.show-all-icon.flip {
+  transform: rotate(180deg);
+}
+
+.empty-search {
+  text-align: center;
+  padding: 40px 16px;
+  color: var(--color-text-tertiary);
+}
+
+.empty-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: 4px;
+}
+
+.empty-sub {
+  font-size: 14px;
 }
 
 @media (min-width: 640px) {
@@ -485,6 +773,13 @@ function setCategory(cat) {
 
   .back-btn {
     display: none;
+  }
+
+  .menu-search {
+    padding: 12px 0;
+    border-bottom: none;
+    background: none;
+    position: static;
   }
 
   .category-tabs {

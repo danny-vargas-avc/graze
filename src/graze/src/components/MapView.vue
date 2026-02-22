@@ -145,9 +145,12 @@ const createIconMarker = (url) => {
 }
 
 // Load all restaurant marker images into the map style
+let loadingMarkers = false
 const loadMarkerImages = async () => {
-  if (!map) return
+  if (!map || loadingMarkers) return
+  loadingMarkers = true
 
+  try {
   const icons = configStore.restaurantIcons || {}
   const colors = configStore.restaurantColors || {}
 
@@ -179,6 +182,9 @@ const loadMarkerImages = async () => {
   const defaultName = 'marker-default'
   if (map.hasImage(defaultName)) map.removeImage(defaultName)
   map.addImage(defaultName, createInitialMarker(colors['default'] || '#3B82F6', '?'))
+  } finally {
+    loadingMarkers = false
+  }
 }
 
 // --- Supercluster ---
