@@ -6,15 +6,11 @@ import { useLocationsStore } from '../stores/locations'
 import { useRestaurantsStore } from '../stores/restaurants'
 import { useConfigStore } from '../stores/config'
 import { useSheetDrag } from '../composables/useSheetDrag'
-import { getDishes } from '../api/dishes'
+// import { getDishes } from '../api/dishes'
 
 import MapView from '../components/MapView.vue'
 import MapBottomSheet from '../components/MapBottomSheet.vue'
-import SearchBar from '../components/SearchBar.vue'
-import CategoryPills from '../components/CategoryPills.vue'
-import CarouselSection from '../components/CarouselSection.vue'
-import RestaurantCard from '../components/RestaurantCard.vue'
-import DishCardCompact from '../components/DishCardCompact.vue'
+// import SearchBar from '../components/SearchBar.vue'
 
 const router = useRouter()
 const locationsStore = useLocationsStore()
@@ -22,7 +18,6 @@ const restaurantsStore = useRestaurantsStore()
 const configStore = useConfigStore()
 
 const { locations, userLocation } = storeToRefs(locationsStore)
-const { restaurants } = storeToRefs(restaurantsStore)
 
 // --- Desktop detection ---
 const isDesktop = ref(false)
@@ -96,126 +91,131 @@ function handleBoundsChange(data) {
   locationsStore.fetchLocations({ bbox: data.bbox })
 }
 
-// --- Visible restaurants from map ---
-const visibleRestaurantSlugs = computed(() => {
-  return new Set(locations.value.map(l => l.restaurant?.slug).filter(Boolean))
-})
-
-const visibleRestaurants = computed(() => {
-  if (visibleRestaurantSlugs.value.size === 0) return restaurants.value
-  return restaurants.value.filter(r => visibleRestaurantSlugs.value.has(r.slug))
-})
-
-let prevSlugsKey = ''
-
-watch(visibleRestaurantSlugs, (newSlugs) => {
-  const key = [...newSlugs].sort().join(',')
-  if (key !== prevSlugsKey) {
-    prevSlugsKey = key
-    fetchCarousels(activeCategory.value, key || null)
-  }
-})
-
-// --- Carousel data ---
-const activeCategory = ref(null)
-const highProteinDishes = ref([])
-const lowCalDishes = ref([])
-const bestRatioDishes = ref([])
-const bowlDishes = ref([])
-const saladDishes = ref([])
-const burgerDishes = ref([])
-const loading = ref(true)
-
-async function fetchCarousels(category = null, restaurantSlugs = null) {
-  loading.value = true
-  try {
-    const base = {}
-    if (category) base.category = category
-    if (restaurantSlugs) base.restaurants = restaurantSlugs
-
-    const corePromises = [
-      getDishes({ ...base, sort: 'protein_desc', limit: 10 }),
-      getDishes({ ...base, calories_max: 500, sort: 'protein_ratio_desc', limit: 10 }),
-      getDishes({ ...base, sort: 'protein_ratio_desc', limit: 10 }),
-    ]
-
-    const categoryPromises = category ? [] : [
-      getDishes({ ...base, category: 'bowl', sort: 'protein_desc', limit: 10 }),
-      getDishes({ ...base, category: 'salad', sort: 'protein_desc', limit: 10 }),
-      getDishes({ ...base, category: 'burger', sort: 'protein_desc', limit: 10 }),
-    ]
-
-    const results = await Promise.all([...corePromises, ...categoryPromises])
-
-    highProteinDishes.value = results[0].data
-    lowCalDishes.value = results[1].data
-    bestRatioDishes.value = results[2].data
-
-    if (!category) {
-      bowlDishes.value = results[3].data
-      saladDishes.value = results[4].data
-      burgerDishes.value = results[5].data
-    } else {
-      bowlDishes.value = []
-      saladDishes.value = []
-      burgerDishes.value = []
-    }
-  } catch (e) {
-    console.error('Failed to load carousel data:', e)
-  } finally {
-    loading.value = false
-  }
+// --- Nearby restaurants from map locations ---
+function haversineDistance(lat1, lon1, lat2, lon2) {
+  const R = 3959
+  const dLat = (lat2 - lat1) * Math.PI / 180
+  const dLon = (lon2 - lon1) * Math.PI / 180
+  const a = Math.sin(dLat / 2) ** 2 +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) ** 2
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
 }
 
-// --- Search ---
-const searchQuery = ref('')
-const searchResults = ref([])
-const searchLoading = ref(false)
-let searchController = null
+const nearbyRestaurants = computed(() => {
+  const grouped = {}
 
-const isSearching = computed(() => searchQuery.value.trim().length > 0)
+  for (const loc of locations.value) {
+    const slug = loc.restaurant?.slug
+    if (!slug) continue
 
-// Filter map locations to match search results
-const searchRestaurantSlugs = computed(() => {
-  if (!isSearching.value || searchResults.value.length === 0) return null
-  return new Set(searchResults.value.map(d => d.restaurant?.slug).filter(Boolean))
-})
-
-const mapLocations = computed(() => {
-  if (!searchRestaurantSlugs.value) return locations.value
-  return locations.value.filter(l => searchRestaurantSlugs.value.has(l.restaurant?.slug))
-})
-
-function handleSearch(value) {
-  searchQuery.value = value
-
-  if (searchController) searchController.abort()
-
-  if (!value.trim()) {
-    searchResults.value = []
-    searchLoading.value = false
-    return
-  }
-
-  searchLoading.value = true
-  searchController = new AbortController()
-
-  getDishes({ search: value.trim(), sort: 'protein_ratio_desc', limit: 50 }, searchController.signal)
-    .then(result => {
-      searchResults.value = result.data
-      searchLoading.value = false
-    })
-    .catch(err => {
-      if (err.name !== 'CanceledError') {
-        searchLoading.value = false
+    if (!grouped[slug]) {
+      grouped[slug] = {
+        slug,
+        name: loc.restaurant.name,
+        logoUrl: loc.restaurant.logo_url,
+        itemCount: loc.restaurant.item_count,
+        locationCount: 0,
+        nearestDistance: Infinity,
+        nearestLocation: null,
       }
+    }
+
+    grouped[slug].locationCount++
+
+    if (userLocation.value) {
+      const dist = haversineDistance(
+        userLocation.value.lat, userLocation.value.lng,
+        parseFloat(loc.latitude), parseFloat(loc.longitude)
+      )
+      if (dist < grouped[slug].nearestDistance) {
+        grouped[slug].nearestDistance = dist
+        grouped[slug].nearestLocation = loc
+      }
+    } else if (!grouped[slug].nearestLocation) {
+      grouped[slug].nearestLocation = loc
+    }
+  }
+
+  let list = Object.values(grouped)
+
+  if (userLocation.value) {
+    list.sort((a, b) => a.nearestDistance - b.nearestDistance)
+  } else {
+    list.sort((a, b) => a.name.localeCompare(b.name))
+  }
+
+  return list
+})
+
+// --- Search (commented out — map is the search for now) ---
+// const searchQuery = ref('')
+// const searchResults = ref([])
+// const searchLoading = ref(false)
+// let searchController = null
+// const isSearching = computed(() => searchQuery.value.trim().length > 0)
+// const searchRestaurantSlugs = computed(() => {
+//   if (!isSearching.value || searchResults.value.length === 0) return null
+//   return new Set(searchResults.value.map(d => d.restaurant?.slug).filter(Boolean))
+// })
+// function handleSearch(value) { ... }
+
+const mapLocations = computed(() => locations.value)
+const displayedRestaurants = computed(() => nearbyRestaurants.value)
+
+// --- Restaurant tap → fly to pin ---
+function handleRestaurantTap(restaurant) {
+  const loc = restaurant.nearestLocation
+  if (!loc) return
+
+  const map = mapViewRef.value?.getMap()
+  if (map) {
+    map.flyTo({
+      center: [parseFloat(loc.longitude), parseFloat(loc.latitude)],
+      zoom: 15,
+      duration: 800,
     })
+  }
+
+  handleMarkerClick({
+    id: loc.id,
+    name: loc.name,
+    restaurant: loc.restaurant,
+    coordinates: [parseFloat(loc.longitude), parseFloat(loc.latitude)],
+  })
 }
 
-function handleCategoryChange(category) {
-  activeCategory.value = category
-  fetchCarousels(category, prevSlugsKey || null)
+// --- Config helpers ---
+const getColor = (slug) => configStore.getRestaurantColor(slug)
+const getIcon = (slug) => configStore.getRestaurantIcon(slug)
+
+// --- Locate me ---
+let hasAutoFlown = false
+
+function flyToUser() {
+  const loc = userLocation.value
+  const map = mapViewRef.value?.getMap()
+  if (!loc || !map) return
+  map.flyTo({ center: [loc.lng, loc.lat], zoom: 13, duration: 1000 })
 }
+
+function handleLocateMe() {
+  if (userLocation.value) {
+    flyToUser()
+  } else {
+    locationsStore.requestUserLocation()
+      .then(() => flyToUser())
+      .catch(() => {})
+  }
+}
+
+// Auto-fly to user on first location grant
+watch(userLocation, (loc) => {
+  if (loc && !hasAutoFlown) {
+    hasAutoFlown = true
+    flyToUser()
+  }
+})
 
 // --- Lifecycle ---
 onMounted(() => {
@@ -225,7 +225,6 @@ onMounted(() => {
 
   restaurantsStore.fetchRestaurants()
   locationsStore.fetchLocations()
-  fetchCarousels()
   window.addEventListener('resize', recalcSnapPoints)
 
   locationsStore.requestUserLocation().catch(() => {})
@@ -243,105 +242,47 @@ onUnmounted(() => {
   <div class="home-view" :class="{ 'home-desktop': isDesktop }">
     <!-- ============ DESKTOP LAYOUT (1024px+) ============ -->
     <template v-if="isDesktop">
-      <!-- Left panel: scrollable list -->
       <div class="desktop-list-panel">
-        <div class="desktop-search">
-          <SearchBar
-            :model-value="searchQuery"
-            @update:model-value="handleSearch"
-            placeholder="Search dishes or restaurants..."
-          />
-        </div>
-
         <div class="desktop-list-content">
-          <!-- Search results -->
-          <template v-if="isSearching">
-            <div class="search-results-header">
-              <p v-if="searchLoading" class="results-info">Searching...</p>
-              <p v-else class="results-info">{{ searchResults.length }} result{{ searchResults.length !== 1 ? 's' : '' }} for "{{ searchQuery }}"</p>
-            </div>
-            <div v-if="searchLoading" class="search-results-grid">
-              <div v-for="i in 6" :key="i" class="skeleton-card search-skeleton"></div>
-            </div>
-            <div v-else-if="searchResults.length" class="search-results-grid">
-              <DishCardCompact
-                v-for="dish in searchResults"
-                :key="dish.id"
-                :dish="dish"
-              />
-            </div>
-            <div v-else class="empty-search">
-              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          <div class="list-header">
+            <p class="list-summary">
+              {{ displayedRestaurants.length }} restaurant{{ displayedRestaurants.length !== 1 ? 's' : '' }} nearby
+            </p>
+          </div>
+
+          <div class="restaurant-list">
+            <button
+              v-for="r in displayedRestaurants"
+              :key="r.slug"
+              class="restaurant-row"
+              @click="handleRestaurantTap(r)"
+            >
+              <div class="row-icon">
+                <img v-if="getIcon(r.slug) || r.logoUrl" :src="getIcon(r.slug) || r.logoUrl" :alt="r.name" />
+                <div v-else class="icon-fallback" :style="{ backgroundColor: getColor(r.slug) }">
+                  {{ r.name.charAt(0) }}
+                </div>
+              </div>
+              <div class="row-info">
+                <span class="row-name">{{ r.name }}</span>
+                <span class="row-meta">{{ r.itemCount }} items · {{ r.locationCount }} location{{ r.locationCount !== 1 ? 's' : '' }}</span>
+              </div>
+              <div v-if="r.nearestDistance < Infinity" class="row-distance">
+                {{ r.nearestDistance < 10 ? r.nearestDistance.toFixed(1) : Math.round(r.nearestDistance) }} mi
+              </div>
+              <svg class="row-chevron" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
               </svg>
-              <p class="empty-title">No results found</p>
-              <p class="empty-sub">Try a different search term</p>
-            </div>
-          </template>
+            </button>
+          </div>
 
-          <!-- Carousel content -->
-          <template v-else>
-            <CategoryPills :active="activeCategory" @change="handleCategoryChange" />
-
-            <CarouselSection title="Restaurants" see-all-to="/restaurants">
-              <div class="carousel-scroll hide-scrollbar">
-                <RestaurantCard
-                  v-for="restaurant in visibleRestaurants"
-                  :key="restaurant.slug"
-                  :restaurant="restaurant"
-                />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Highest Protein" icon="protein">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in highProteinDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Under 500 Calories" icon="calories">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in lowCalDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Best Protein Ratio" icon="ratio">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in bestRatioDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="bowlDishes.length" title="Top Bowls" icon="bowl">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in bowlDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="saladDishes.length" title="Top Salads" icon="salad">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in saladDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="burgerDishes.length" title="Top Burgers" icon="burger">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in burgerDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-          </template>
+          <div v-if="!displayedRestaurants.length" class="empty-list">
+            <p class="empty-title">No restaurants in view</p>
+            <p class="empty-sub">Pan or zoom the map to explore</p>
+          </div>
         </div>
       </div>
 
-      <!-- Right panel: map -->
       <div class="desktop-map-panel">
         <MapView
           ref="mapViewRef"
@@ -353,6 +294,12 @@ onUnmounted(() => {
           @marker-click="handleMarkerClick"
           @bounds-change="handleBoundsChange"
         />
+        <button class="locate-btn" @click="handleLocateMe" aria-label="Center on my location">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="3" />
+            <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round" />
+          </svg>
+        </button>
         <MapBottomSheet
           v-if="showLocationSheet && selectedLocation"
           :location="selectedLocation"
@@ -375,103 +322,57 @@ onUnmounted(() => {
         @bounds-change="handleBoundsChange"
       />
 
+      <button class="locate-btn mobile-locate" @click="handleLocateMe" aria-label="Center on my location">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3" />
+          <path d="M12 2v4M12 18v4M2 12h4M18 12h4" stroke-linecap="round" />
+        </svg>
+      </button>
+
       <div ref="sheetRef" class="list-sheet" :style="sheetStyle">
         <div ref="handleRef" class="sheet-handle-area">
           <div class="handle-bar-wrapper">
             <div class="handle-bar"></div>
           </div>
-          <div class="sheet-search">
-            <SearchBar
-              :model-value="searchQuery"
-              @update:model-value="handleSearch"
-              placeholder="Search dishes or restaurants..."
-            />
-          </div>
         </div>
 
         <div ref="sheetContentRef" class="sheet-content">
-          <template v-if="isSearching">
-            <div class="search-results-header">
-              <p v-if="searchLoading" class="results-info">Searching...</p>
-              <p v-else class="results-info">{{ searchResults.length }} result{{ searchResults.length !== 1 ? 's' : '' }} for "{{ searchQuery }}"</p>
-            </div>
-            <div v-if="searchLoading" class="search-results-grid">
-              <div v-for="i in 6" :key="i" class="skeleton-card search-skeleton"></div>
-            </div>
-            <div v-else-if="searchResults.length" class="search-results-grid">
-              <DishCardCompact
-                v-for="dish in searchResults"
-                :key="dish.id"
-                :dish="dish"
-              />
-            </div>
-            <div v-else class="empty-search">
-              <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          <div class="list-header">
+            <p class="list-summary">
+              {{ displayedRestaurants.length }} restaurant{{ displayedRestaurants.length !== 1 ? 's' : '' }} nearby
+            </p>
+          </div>
+
+          <div class="restaurant-list">
+            <button
+              v-for="r in displayedRestaurants"
+              :key="r.slug"
+              class="restaurant-row"
+              @click="handleRestaurantTap(r)"
+            >
+              <div class="row-icon">
+                <img v-if="getIcon(r.slug) || r.logoUrl" :src="getIcon(r.slug) || r.logoUrl" :alt="r.name" />
+                <div v-else class="icon-fallback" :style="{ backgroundColor: getColor(r.slug) }">
+                  {{ r.name.charAt(0) }}
+                </div>
+              </div>
+              <div class="row-info">
+                <span class="row-name">{{ r.name }}</span>
+                <span class="row-meta">{{ r.itemCount }} items · {{ r.locationCount }} location{{ r.locationCount !== 1 ? 's' : '' }}</span>
+              </div>
+              <div v-if="r.nearestDistance < Infinity" class="row-distance">
+                {{ r.nearestDistance < 10 ? r.nearestDistance.toFixed(1) : Math.round(r.nearestDistance) }} mi
+              </div>
+              <svg class="row-chevron" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M7.21 14.77a.75.75 0 01.02-1.06L11.168 10 7.23 6.29a.75.75 0 111.04-1.08l4.5 4.25a.75.75 0 010 1.08l-4.5 4.25a.75.75 0 01-1.06-.02z" clip-rule="evenodd" />
               </svg>
-              <p class="empty-title">No results found</p>
-              <p class="empty-sub">Try a different search term</p>
-            </div>
-          </template>
+            </button>
+          </div>
 
-          <template v-else>
-            <CategoryPills :active="activeCategory" @change="handleCategoryChange" />
-
-            <CarouselSection title="Restaurants" see-all-to="/restaurants">
-              <div class="carousel-scroll hide-scrollbar">
-                <RestaurantCard
-                  v-for="restaurant in visibleRestaurants"
-                  :key="restaurant.slug"
-                  :restaurant="restaurant"
-                />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Highest Protein" icon="protein">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in highProteinDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Under 500 Calories" icon="calories">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in lowCalDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection title="Best Protein Ratio" icon="ratio">
-              <div class="carousel-scroll hide-scrollbar">
-                <template v-if="loading">
-                  <div v-for="i in 4" :key="i" class="skeleton-card"></div>
-                </template>
-                <DishCardCompact v-else v-for="dish in bestRatioDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="bowlDishes.length" title="Top Bowls" icon="bowl">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in bowlDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="saladDishes.length" title="Top Salads" icon="salad">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in saladDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-
-            <CarouselSection v-if="burgerDishes.length" title="Top Burgers" icon="burger">
-              <div class="carousel-scroll hide-scrollbar">
-                <DishCardCompact v-for="dish in burgerDishes" :key="dish.id" :dish="dish" />
-              </div>
-            </CarouselSection>
-          </template>
+          <div v-if="!displayedRestaurants.length" class="empty-list">
+            <p class="empty-title">No restaurants in view</p>
+            <p class="empty-sub">Pan or zoom the map to explore</p>
+          </div>
         </div>
       </div>
 
@@ -511,11 +412,6 @@ onUnmounted(() => {
   z-index: 5;
 }
 
-.desktop-search {
-  padding: 16px 16px 8px;
-  flex-shrink: 0;
-}
-
 .desktop-list-content {
   flex: 1;
   overflow-y: auto;
@@ -527,11 +423,6 @@ onUnmounted(() => {
   flex: 1;
   height: 100%;
   position: relative;
-}
-
-/* Keep search grid 2-col inside narrow desktop panel */
-.desktop-list-panel .search-results-grid {
-  grid-template-columns: repeat(2, 1fr);
 }
 
 /* ============ MOBILE (sheet) ============ */
@@ -572,10 +463,6 @@ onUnmounted(() => {
   background-color: var(--color-border);
 }
 
-.sheet-search {
-  padding: 0 16px 8px;
-}
-
 .sheet-content {
   flex: 1;
   overflow-y: auto;
@@ -583,95 +470,168 @@ onUnmounted(() => {
   padding-bottom: calc(24px + env(safe-area-inset-bottom));
 }
 
-/* ============ SHARED ============ */
-.carousel-scroll {
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  scroll-padding-left: 16px;
+/* ============ RESTAURANT LIST ============ */
+.list-header {
+  padding: 12px 16px 4px;
 }
 
-.carousel-scroll::before,
-.carousel-scroll::after {
-  content: '';
-  min-width: 16px;
-  flex-shrink: 0;
-}
-
-.carousel-scroll > * {
-  scroll-snap-align: start;
-  flex-shrink: 0;
-}
-
-/* Skeletons */
-.skeleton-card {
-  width: 200px;
-  height: 180px;
-  border-radius: 12px;
-  background: var(--color-surface);
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
-}
-
-/* Search results */
-.search-results-header {
-  padding: 12px 16px 0;
-}
-
-.results-info {
+.list-summary {
   font-size: 13px;
+  font-weight: 500;
   color: var(--color-text-tertiary);
 }
 
-.search-results-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
+.restaurant-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.restaurant-row {
+  display: flex;
+  align-items: center;
   gap: 12px;
   padding: 12px 16px;
-}
-
-.search-results-grid :deep(.dish-compact) {
+  border: none;
+  background: none;
   width: 100%;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 150ms ease;
 }
 
-.search-results-grid .search-skeleton {
+.restaurant-row:hover {
+  background-color: var(--color-surface);
+}
+
+.restaurant-row:active {
+  background-color: var(--color-border);
+}
+
+.row-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  flex-shrink: 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 4px;
+}
+
+.row-icon img {
   width: 100%;
-  height: 200px;
-  border-radius: 12px;
+  height: 100%;
+  object-fit: contain;
 }
 
-.empty-search {
-  text-align: center;
-  padding: 60px 16px;
+.icon-fallback {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+  border-radius: 6px;
+}
+
+.row-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.row-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.row-meta {
+  font-size: 12px;
   color: var(--color-text-tertiary);
+  margin-top: 1px;
 }
 
-.empty-icon {
-  width: 48px;
-  height: 48px;
-  margin: 0 auto 12px;
-  opacity: 0.4;
+.row-distance {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+  background-color: var(--color-surface);
+  padding: 3px 8px;
+  border-radius: 10px;
+  flex-shrink: 0;
+}
+
+.row-chevron {
+  width: 16px;
+  height: 16px;
+  color: var(--color-text-tertiary);
+  flex-shrink: 0;
+}
+
+/* ============ LOCATE BUTTON ============ */
+.locate-btn {
+  position: absolute;
+  bottom: 24px;
+  right: 16px;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: none;
+  background: var(--color-surface-elevated);
+  box-shadow: var(--shadow-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 4;
+  transition: background-color 150ms ease;
+}
+
+.locate-btn:hover {
+  background-color: var(--color-surface);
+}
+
+.locate-btn:active {
+  background-color: var(--color-border);
+}
+
+.locate-btn svg {
+  width: 20px;
+  height: 20px;
+  color: var(--color-text-primary);
+}
+
+.mobile-locate {
+  bottom: auto;
+  top: 16px;
+  right: 16px;
+}
+
+/* ============ EMPTY STATE ============ */
+.empty-list {
+  text-align: center;
+  padding: 48px 16px;
+  color: var(--color-text-tertiary);
 }
 
 .empty-title {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-secondary);
   margin-bottom: 4px;
 }
 
 .empty-sub {
-  font-size: 14px;
-}
-
-@media (min-width: 640px) {
-  .search-results-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
+  font-size: 13px;
 }
 </style>
