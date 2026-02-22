@@ -11,9 +11,8 @@ python manage.py collectstatic --noinput
 echo "==> Running migrations..."
 python manage.py migrate --noinput
 
-echo "==> Importing data..."
-python manage.py import_data
-python manage.py import_byo
+echo "==> Loading data fixtures..."
+python manage.py loaddata fixtures/data.json
 
 echo "==> Starting gunicorn..."
 exec gunicorn graze_api.wsgi:application \
