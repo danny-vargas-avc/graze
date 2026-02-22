@@ -1,0 +1,56 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block title %}Import Locations{% endblock %}
+
+{% block content %}
+<div style="max-width: 720px; margin: 0 auto; padding: 24px 0;">
+  <h1 style="font-size: 24px; font-weight: 700; margin-bottom: 8px;">Import Locations</h1>
+  <p style="color: #6b7280; margin-bottom: 24px;">Upload a CSV file to bulk-import restaurant locations (OpenStreetMap data).</p>
+
+  <form method="post" enctype="multipart/form-data" style="background: var(--color-bg, white); border: 1px solid #e5e7eb; border-radius: 12px; padding: 24px;">
+    {% csrf_token %}
+
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">Restaurant</label>
+      <select name="restaurant" required style="width: 100%; padding: 10px 12px; border: 1px solid #d1d5db; border-radius: 8px; font-size: 14px;">
+        <option value="">Select a restaurant...</option>
+        {% for r in restaurants %}
+        <option value="{{ r.pk }}">{{ r.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <label style="display: block; font-weight: 600; margin-bottom: 6px;">CSV File</label>
+      <input type="file" name="csv_file" accept=".csv" required style="font-size: 14px;" />
+    </div>
+
+    <div style="background: #f3f4f6; border-radius: 8px; padding: 14px; margin-bottom: 20px; font-size: 13px; color: #374151;">
+      <strong>Expected columns:</strong> osm_id, name, latitude, longitude, address, city, state, postcode, phone, website, amenity_type
+      <br><em>Required: osm_id, latitude, longitude</em>
+      <br><em>Duplicates (by osm_id) will be skipped.</em>
+    </div>
+
+    <button type="submit" style="background: #059669; color: white; border: none; padding: 10px 24px; border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer;">
+      Import Locations
+    </button>
+  </form>
+
+  {% if imported is not None %}
+  <div style="margin-top: 24px; padding: 16px; background: #ecfdf5; border: 1px solid #a7f3d0; border-radius: 8px;">
+    <strong>Import complete:</strong> {{ imported }} locations imported{% if skipped %}, {{ skipped }} duplicates skipped{% endif %}.
+    {% if errors %}
+    <div style="margin-top: 8px; color: #b45309;">
+      {{ errors|length }} errors:
+      <ul style="margin: 4px 0 0 16px; font-size: 13px;">
+        {% for err in errors %}
+        <li>{{ err }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

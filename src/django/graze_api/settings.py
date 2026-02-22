@@ -42,7 +42,7 @@ ROOT_URLCONF = 'graze_api.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [],
+        'DIRS': [BASE_DIR / 'api' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -89,6 +89,8 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 CORS_ALLOWED_ORIGINS = config('CORS_ORIGINS', default='http://localhost:5173', cast=Csv())
+
+ANTHROPIC_API_KEY = config('ANTHROPIC_API_KEY', default='')
 
 REST_FRAMEWORK = {
     'DEFAULT_PAGINATION_CLASS': None,
@@ -142,6 +144,26 @@ UNFOLD = {
                         "title": "Locations",
                         "icon": "location_on",
                         "link": reverse_lazy("admin:api_restaurantlocation_changelist"),
+                    },
+                ],
+            },
+            {
+                "title": "Import",
+                "items": [
+                    {
+                        "title": "Menu Items (CSV)",
+                        "icon": "upload_file",
+                        "link": reverse_lazy("import_menu_items"),
+                    },
+                    {
+                        "title": "Locations (CSV)",
+                        "icon": "map",
+                        "link": reverse_lazy("import_locations"),
+                    },
+                    {
+                        "title": "Parse PDF",
+                        "icon": "picture_as_pdf",
+                        "link": reverse_lazy("parse_nutrition_pdf"),
                     },
                 ],
             },

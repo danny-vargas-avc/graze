@@ -1,19 +1,34 @@
 from django.contrib import admin
 from django.utils.html import mark_safe
-from unfold.admin import ModelAdmin
+from unfold.admin import ModelAdmin, TabularInline
 from .models import Restaurant, MenuItem, DataFlag, RestaurantLocation, LocationFlag, ByoComponent
+
+
+class MenuItemInline(TabularInline):
+    model = MenuItem
+    extra = 0
+    fields = ['name', 'category', 'calories', 'protein', 'carbs', 'fat', 'is_available']
+    show_change_link = True
+
+
+class ByoComponentInline(TabularInline):
+    model = ByoComponent
+    extra = 0
+    fields = ['category', 'name', 'calories', 'protein', 'carbs', 'fat', 'is_available']
 
 
 @admin.register(Restaurant)
 class RestaurantAdmin(ModelAdmin):
-    list_display = ['name', 'slug', 'icon_thumb', 'item_count', 'location_count', 'last_updated']
+    list_display = ['name', 'slug', 'icon_thumb', 'item_count', 'location_count', 'has_byo', 'last_updated']
     search_fields = ['name', 'slug']
     prepopulated_fields = {'slug': ('name',)}
-    readonly_fields = ['logo_preview', 'icon_preview']
+    readonly_fields = ['logo_preview', 'icon_preview', 'item_count', 'location_count']
+    inlines = [MenuItemInline, ByoComponentInline]
     fieldsets = (
-        (None, {'fields': ('name', 'slug', 'brand_color')}),
+        (None, {'fields': ('name', 'slug', 'brand_color', 'has_byo')}),
         ('Images', {'fields': ('logo', 'logo_preview', 'icon', 'icon_preview')}),
         ('Links', {'fields': ('website_url', 'logo_url', 'nutrition_source_url')}),
+        ('Data', {'fields': ('nutrition_pdf', 'item_count', 'location_count')}),
     )
 
     @admin.display(description='Icon')
